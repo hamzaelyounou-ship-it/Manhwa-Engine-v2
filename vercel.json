@@ -1,7 +1,7 @@
 {
   "version": 2,
   "functions": {
-    "api/chat.ts": {
+    "api/*.ts": {
       "runtime": "nodejs24.x",
       "memory": 1024,
       "maxDuration": 300

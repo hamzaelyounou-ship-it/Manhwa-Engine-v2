@@ -5,67 +5,65 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const { mode, message, worldSummary, history } = req.body;
   const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+
   if (!OPENROUTER_API_KEY) return res.status(500).json({ error: "Missing API Key" });
 
   const systemPrompt = `
-You are a cinematic narrative engine. Always address the player as "You".
-Produce rich descriptive paragraphs (at least 4–5 sentences). Use vivid imagery, atmosphere, internal state, and sensory detail.
-Never output assistant tags or JSON. Only narrative text.
-Integrate the following world context deeply into the story:
-WORLD SUMMARY:
-${worldSummary}
+You are a cinematic Manhwa/Game Story Engine. 
+Always describe events in second-person ("You...").
+Produce rich, descriptive paragraphs with at least 5 sentences each.
+Never prefix responses with "Assistant:".
+Incorporate all context from the World Summary:
+${worldSummary || "No world context provided."}
+History (last 8 messages):
+${history?.join("\n") ?? ""}
 
-MODE: ${mode.toUpperCase()}
-USER_INPUT: ${mode === "continue" ? "[CONTINUE]" : message}
-Continue the scene accordingly.
-  `;
+Use the selected mode (${mode}) to guide narration:
+- do: describe consequences of actions
+- say: include speech/dialogue
+- think: internal thoughts
+- story: narrative exposition
+- continue: continue the scene naturally
+- erase: remove last action from the story
+`;
 
   try {
-    const upstream = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    const response = await fetch("https://openrouter.ai/api/v1/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+        "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-       model: "mistralai/mistral-7b-instruct:free",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: mode === "continue" ? "Continue." : message },
-        ],
-        temperature: 0.8,
-        max_tokens: 2048,
+        model: "meta-llama/llama-3-8b-instruct:free",
         stream: true,
+        input: `${systemPrompt}\n${message}`,
+        max_tokens: 2048,
       }),
     });
 
-    if (!upstream.ok || !upstream.body) {
-      const txt = await upstream.text();
-      return res.status(502).json({ error: `(upstream error) ${txt}` });
-    }
+    if (!response.body) return res.status(500).json({ error: "No response body" });
 
     res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
 
-    try { res.flushHeaders(); } catch {}
-
-    const reader = upstream.body.getReader();
+    const reader = response.body.getReader();
     const decoder = new TextDecoder();
+    let done = false;
 
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
+    while (!done) {
+      const { value, done: d } = await reader.read();
+      done = d;
       if (value) {
         const chunk = decoder.decode(value, { stream: true });
-        res.write(`data: ${chunk}\n\n`);
-        try { res.flush(); } catch {}
+        res.write(chunk);
       }
     }
 
-    res.write(`data: [DONE]\n\n`);
     res.end();
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 }
+

@@ -32,23 +32,24 @@ type MessageLine = { text: string };
 type ModeKey = "do" | "say" | "think" | "story" | "continue" | "erase";
 
 export default function App() {
+  // --- View State ---
   const [view, setView] = useState<"home" | "game">("home");
   const [scenarios] = useState<Scenario[]>(SAMPLE_SCENARIOS);
   const [currentScenario, setCurrentScenario] = useState<Scenario | null>(null);
   const [lines, setLines] = useState<MessageLine[]>([]);
   const storyRef = useRef<HTMLDivElement | null>(null);
 
+  // --- Modals / Drawers ---
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [opsOpen, setOpsOpen] = useState(false);
 
+  // --- Scenario / World Data ---
   const [worldTitle, setWorldTitle] = useState("");
   const [worldSummary, setWorldSummary] = useState("");
-
   const [characterName, setCharacterName] = useState("");
   const [characterClass, setCharacterClass] = useState("");
   const [characterBackground, setCharacterBackground] = useState("");
-
   const [aiInstructions, setAiInstructions] = useState("");
   const [authorsNote, setAuthorsNote] = useState("");
   const [bgGradient, setBgGradient] = useState(
@@ -63,14 +64,14 @@ export default function App() {
   const [historyStack, setHistoryStack] = useState<MessageLine[][]>([]);
   const [redoStack, setRedoStack] = useState<MessageLine[][]>([]);
 
-  const [opsTab, setOpsTab] = useState<"character" | "world" | "appearance">("character");
+  const [opsTab, setOpsTab] = useState<"plot" | "world" | "appearance">("plot");
 
-  // Auto-scroll story
+  // --- Auto-scroll ---
   useEffect(() => {
     if (storyRef.current) storyRef.current.scrollTop = storyRef.current.scrollHeight;
   }, [lines]);
 
-  // Scenario Handlers
+  // --- Scenario Selection ---
   function openScenario(s: Scenario) {
     setCurrentScenario(s);
     setWorldTitle(s.title);
@@ -101,7 +102,7 @@ export default function App() {
 
   function createCustomScenario() {
     setOpsOpen(true);
-    setOpsTab("character");
+    setOpsTab("plot");
   }
 
   function handleStartCustom() {
@@ -116,7 +117,7 @@ export default function App() {
     setView("game");
   }
 
-  // Undo / Redo
+  // --- Undo / Redo ---
   function undo() {
     if (historyStack.length <= 1) return;
     const prev = historyStack[historyStack.length - 2];
@@ -133,13 +134,12 @@ export default function App() {
     setRedoStack(redoStack.slice(1));
   }
 
-  // Streaming / API call
+  // --- Streaming / API ---
   async function sendMessage(useMode?: ModeKey) {
     const m = useMode ?? mode;
     if (m !== "continue" && m !== "erase" && !input.trim()) return;
 
     if (m === "erase") {
-      // Remove last user + AI response
       const prev = [...lines];
       prev.pop();
       prev.pop();
@@ -150,7 +150,7 @@ export default function App() {
 
     const userText =
       m === "say"
-        ? `${characterName || "You"} say: "${input}"`
+        ? `${characterName || "You"} says: "${input}"`
         : m === "do"
         ? `${characterName || "You"} attempts: ${input}`
         : m === "think"
@@ -187,7 +187,7 @@ export default function App() {
 
       if (!res.ok || !res.body) {
         const txt = await res.text();
-        setLines((prev) => [...prev, { text: `(error) ${txt}` }]);
+        setLines((prev) => [...prev, { text: `(error) ${txt}`]);
         setStreaming(false);
         return;
       }
@@ -232,16 +232,36 @@ export default function App() {
       <header className="fixed top-0 left-0 right-0 h-16 backdrop-blur-md bg-black/30 z-50 flex items-center justify-between px-6">
         <div
           className="text-xl font-bold cursor-pointer"
-          onClick={() => view === "game" && confirm("Exit game? Unsaved progress will be lost.") && setView("home")}
+          onClick={() =>
+            view === "game" &&
+            confirm("Exit game? Unsaved progress will be lost.") &&
+            setView("home")
+          }
         >
           Manhwa Engine
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={undo} className="p-2 hover:bg-white/10 rounded">↩️</button>
-          <button onClick={redo} className="p-2 hover:bg-white/10 rounded">↪️</button>
-          <button onClick={() => setDrawerOpen((s) => !s)} className="p-2 hover:bg-white/10 rounded">🛡️</button>
-          <button onClick={() => setSettingsOpen(true)} className="p-2 hover:bg-white/10 rounded">⚙️</button>
-        </div>
+        {view === "game" && (
+          <div className="flex items-center gap-2">
+            <button onClick={undo} className="p-2 hover:bg-white/10 rounded">
+              ↩️
+            </button>
+            <button onClick={redo} className="p-2 hover:bg-white/10 rounded">
+              ↪️
+            </button>
+            <button
+              onClick={() => setDrawerOpen((s) => !s)}
+              className="p-2 hover:bg-white/10 rounded"
+            >
+              🛡️
+            </button>
+            <button
+              onClick={() => setSettingsOpen(true)}
+              className="p-2 hover:bg-white/10 rounded"
+            >
+              ⚙️
+            </button>
+          </div>
+        )}
       </header>
 
       {/* Status Drawer */}
@@ -257,36 +277,63 @@ export default function App() {
       </div>
 
       {/* Settings / Operations Room Modal */}
-      {opsOpen || settingsOpen ? (
+      {(opsOpen || settingsOpen) && (
         <div className="fixed inset-0 flex justify-center items-center modal-backdrop z-50">
           <div className="bg-black/80 p-6 rounded-lg max-w-2xl w-full text-white">
             <div className="flex justify-between mb-4">
               <h2 className="font-bold text-xl">Operations Room</h2>
-              <button onClick={() => { setOpsOpen(false); setSettingsOpen(false); }}>✖️</button>
+              <button
+                onClick={() => {
+                  setOpsOpen(false);
+                  setSettingsOpen(false);
+                }}
+              >
+                ✖️
+              </button>
             </div>
+            {/* Tabs */}
             <div className="flex gap-4 mb-4 border-b border-white/20">
               <button
-                className={`px-2 py-1 ${opsTab === "character" ? "border-b-2 border-cyan-400" : ""}`}
-                onClick={() => setOpsTab("character")}
+                className={`px-2 py-1 ${
+                  opsTab === "plot" ? "border-b-2 border-cyan-400" : ""
+                }`}
+                onClick={() => setOpsTab("plot")}
               >
-                CHARACTER
+                PLOT
               </button>
               <button
-                className={`px-2 py-1 ${opsTab === "world" ? "border-b-2 border-cyan-400" : ""}`}
+                className={`px-2 py-1 ${
+                  opsTab === "world" ? "border-b-2 border-cyan-400" : ""
+                }`}
                 onClick={() => setOpsTab("world")}
               >
                 WORLD RULES
               </button>
               <button
-                className={`px-2 py-1 ${opsTab === "appearance" ? "border-b-2 border-cyan-400" : ""}`}
+                className={`px-2 py-1 ${
+                  opsTab === "appearance" ? "border-b-2 border-cyan-400" : ""
+                }`}
                 onClick={() => setOpsTab("appearance")}
               >
                 APPEARANCE
               </button>
             </div>
-
-            {opsTab === "character" && (
+            {opsTab === "plot" && (
               <div className="flex flex-col gap-3">
+                <input
+                  type="text"
+                  placeholder="World Title"
+                  className="p-2 rounded bg-gray-800"
+                  value={worldTitle}
+                  onChange={(e) => setWorldTitle(e.target.value)}
+                />
+                <textarea
+                  placeholder="Story Summary / Opening Scene"
+                  className="p-2 rounded bg-gray-800"
+                  rows={4}
+                  value={worldSummary}
+                  onChange={(e) => setWorldSummary(e.target.value)}
+                />
                 <input
                   type="text"
                   placeholder="Character Name"
@@ -294,27 +341,12 @@ export default function App() {
                   value={characterName}
                   onChange={(e) => setCharacterName(e.target.value)}
                 />
-                <input
-                  type="text"
-                  placeholder="Class"
-                  className="p-2 rounded bg-gray-800"
-                  value={characterClass}
-                  onChange={(e) => setCharacterClass(e.target.value)}
-                />
-                <textarea
-                  placeholder="Background / Origin Summary"
-                  className="p-2 rounded bg-gray-800"
-                  rows={4}
-                  value={characterBackground}
-                  onChange={(e) => setCharacterBackground(e.target.value)}
-                />
               </div>
             )}
-
             {opsTab === "world" && (
               <div className="flex flex-col gap-3">
                 <textarea
-                  placeholder="Races, Factions, Places"
+                  placeholder="Races / Factions / Places"
                   className="p-2 rounded bg-gray-800"
                   rows={3}
                 />
@@ -332,23 +364,8 @@ export default function App() {
                   value={authorsNote}
                   onChange={(e) => setAuthorsNote(e.target.value)}
                 />
-                <textarea
-                  placeholder="World / Plot Summary"
-                  className="p-2 rounded bg-gray-800"
-                  rows={3}
-                  value={worldSummary}
-                  onChange={(e) => setWorldSummary(e.target.value)}
-                />
-                <input
-                  type="text"
-                  placeholder="World Title"
-                  className="p-2 rounded bg-gray-800"
-                  value={worldTitle}
-                  onChange={(e) => setWorldTitle(e.target.value)}
-                />
               </div>
             )}
-
             {opsTab === "appearance" && (
               <div className="flex flex-col gap-3">
                 <label>Background Gradient Color</label>
@@ -371,14 +388,17 @@ export default function App() {
               </button>
               <button
                 className="px-3 py-2 rounded border border-white/20"
-                onClick={() => { setOpsOpen(false); setSettingsOpen(false); }}
+                onClick={() => {
+                  setOpsOpen(false);
+                  setSettingsOpen(false);
+                }}
               >
                 Cancel
               </button>
             </div>
           </div>
         </div>
-      ) : null}
+      )}
 
       {/* Main Content */}
       <main className="pt-20 pb-32">
@@ -398,8 +418,18 @@ export default function App() {
                   <h3 className="text-xl font-semibold">{s.title}</h3>
                   <p className="text-sm text-white/70 flex-1 my-2">{s.desc}</p>
                   <div className="flex gap-2 mt-3">
-                    <button className="px-3 py-2 rounded bg-cyan-400 text-black font-semibold" onClick={() => openScenario(s)}>Play</button>
-                    <button className="px-3 py-2 rounded border border-white/10" onClick={createCustomScenario}>Customize</button>
+                    <button
+                      className="px-3 py-2 rounded bg-cyan-400 text-black font-semibold"
+                      onClick={() => openScenario(s)}
+                    >
+                      Play
+                    </button>
+                    <button
+                      className="px-3 py-2 rounded border border-white/10"
+                      onClick={createCustomScenario}
+                    >
+                      Customize
+                    </button>
                   </div>
                 </div>
               ))}
@@ -428,6 +458,35 @@ export default function App() {
                   </p>
                 ))}
                 {streaming && <div className="text-white/60 italic">…Loading narrative…</div>}
+              </div>
+
+              {/* Toolbar */}
+              <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-black/40 backdrop-blur-md rounded-full px-4 py-2 flex gap-2 z-50">
+                {["do", "say", "think", "story", "continue", "erase"].map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => sendMessage(m as ModeKey)}
+                    className={`px-3 py-1 rounded hover:bg-white/10 ${
+                      mode === m ? "bg-cyan-500 text-black font-semibold" : ""
+                    }`}
+                  >
+                    {{
+                      do: "🗡️ Do",
+                      say: "💬 Say",
+                      think: "💭 Think",
+                      story: "📖 Story",
+                      continue: "🔄 Continue",
+                      erase: "🗑️ ERASE",
+                    }[m as ModeKey]}
+                  </button>
+                ))}
+                <input
+                  type="text"
+                  className="ml-2 bg-gray-800/60 px-3 py-1 rounded w-64 focus:outline-none"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Type your action or dialogue..."
+                />
               </div>
             </article>
           </section>

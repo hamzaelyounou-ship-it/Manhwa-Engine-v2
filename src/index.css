@@ -1,26 +1,113 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Manhwa Story Engine - Clean & Cinematic CSS
+   - Fonts: Inter for UI, Merriweather for story body
+   - Top nav, scenario grid, play view, command pill, modal
+*/
 
-/* Custom global styles */
-:root {
-  --bg: #0b0f12;
-  --panel: #0f1518;
-  --muted: #9aa4a6;
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Merriweather:ital,wght@0,300;0,400;0,700;1,400&display=swap');
+
+:root{
+  --bg-0: #06070a;
+  --bg-1: #07121a;
+  --glass: rgba(255,255,255,0.04);
+  --glass-2: rgba(255,255,255,0.06);
+  --muted: rgba(255,255,255,0.6);
+  --accent: #00c7ff;
+  --accent-2: #ffb86b;
 }
 
-html, body, #root {
-  height: 100%;
-  background: linear-gradient(180deg, #06080a 0%, #0b0f12 100%);
-  color: #e6eef0;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+/* reset */
+*{box-sizing:border-box}
+html,body,#root{height:100%;margin:0;font-family:'Inter',system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;color:#fff;background:transparent;}
+
+/* background - subtle breathing gradient */
+.ms-bg{
+  position:fixed;inset:0;z-index:-10;
+  background:
+    radial-gradient(800px 400px at 10% 15%, rgba(0,30,40,0.38), transparent 20%),
+    radial-gradient(900px 500px at 90% 80%, rgba(18,6,25,0.28), transparent 15%),
+    linear-gradient(180deg,var(--bg-0),var(--bg-1));
+  animation: breathe 20s ease-in-out infinite;
+}
+@keyframes breathe{
+  0%{transform:scale(1);filter:hue-rotate(0deg) brightness(0.96)}
+  50%{transform:scale(1.01);filter:hue-rotate(6deg) brightness(1.02)}
+  100%{transform:scale(1);filter:hue-rotate(0deg) brightness(0.96)}
 }
 
-/* custom scrollbar */
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.06);
-  border-radius: 999px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
+/* Top Nav */
+.ms-topnav{
+  position:fixed;left:0;right:0;top:0;height:62px;display:flex;align-items:center;justify-content:space-between;padding:10px 20px;
+  backdrop-filter: blur(10px) saturate(120%); background: linear-gradient(180deg, rgba(10,10,10,0.45), rgba(10,10,10,0.30));
+  border-bottom: 1px solid var(--glass-2); z-index:60;
+}
+.ms-logo{font-weight:700; font-size:1.05rem; cursor:pointer}
+.ms-top-actions{display:flex;gap:8px;align-items:center}
+.icon-btn{background:transparent;border:0;color:var(--muted);padding:8px;border-radius:8px;cursor:pointer}
+.icon-btn:hover{color:#fff;background:rgba(255,255,255,0.02)}
+
+/* main layout */
+.ms-main{display:flex;flex-direction:column;padding-top:82px;min-height:calc(100vh - 82px);}
+
+/* HOME: scenario grid */
+.ms-home{padding:28px 36px}
+.ms-page-title{font-size:20px;margin:0 0 18px 0;color:#fff}
+.ms-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:18px}
+
+/* scenario card */
+.ms-card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:12px;overflow:hidden;border:1px solid var(--glass);display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(2,6,12,0.6)}
+.ms-card-image{height:140px;background-size:cover;background-position:center}
+.ms-card-body{padding:14px;display:flex;flex-direction:column;gap:8px}
+.ms-card-title{margin:0;font-weight:700}
+.ms-card-desc{margin:0;color:var(--muted);font-size:0.95rem}
+.ms-card-actions{display:flex;gap:8px;margin-top:auto}
+.btn{padding:8px 12px;border-radius:8px;background:transparent;color:var(--muted);border:1px solid rgba(255,255,255,0.04);cursor:pointer}
+.btn:hover{background:rgba(255,255,255,0.02);color:#fff}
+.btn-primary{background:linear-gradient(90deg,var(--accent),#0098bd);color:#00131a;border:none;font-weight:700}
+
+/* PLAY layout: sidebar + story */
+.ms-play{display:flex;gap:28px;padding:28px 36px;align-items:flex-start}
+.ms-side{width:320px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:16px;border-radius:12px;border:1px solid var(--glass-2);backdrop-filter: blur(8px);color:var(--muted)}
+.ms-side-block{margin-bottom:14px}
+.ms-side label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+.ms-input{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:#fff}
+
+/* progress */
+.ms-progress{height:12px;background:rgba(255,255,255,0.03);border-radius:999px;overflow:hidden;border:1px solid rgba(255,255,255,0.03)}
+.ms-progress-fill{height:100%;width:50%;background:linear-gradient(90deg,var(--accent),#0098bd);box-shadow:0 10px 30px rgba(0,200,255,0.06);transition:width 260ms}
+.ms-progress-fill.energy{background:linear-gradient(90deg,var(--accent-2),#ff9f3b)}
+
+/* story column */
+.ms-story{flex:1;display:flex;justify-content:center;align-items:flex-start;min-height:60vh}
+.ms-story-inner{width:100%;max-width:800px;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.005));padding:32px;border-radius:12px;border:1px solid rgba(255,255,255,0.02);box-shadow:0 30px 80px rgba(2,6,12,0.6);backdrop-filter: blur(6px);overflow:auto;max-height:calc(100vh - 220px)}
+.ms-story-inner::-webkit-scrollbar{width:0;height:0}
+.ms-paragraph{margin:0 0 20px 0;padding:0;font-family:'Merriweather', serif;color:#e7e7e7;line-height:1.8;font-size:1rem}
+.ms-paragraph p{margin:0}
+.ms-narration p{color:#d9d9d9}
+.ms-dialogue p{color:#fff;font-weight:600}
+.ms-action p{color:var(--accent);font-style:italic}
+.ms-time{display:block;margin-top:8px;font-family:Inter;font-size:12px;color:rgba(255,255,255,0.28)}
+
+/* command pill */
+.ms-command{position:fixed;left:50%;transform:translateX(-50%);bottom:26px;z-index:80;display:flex;align-items:center;gap:12px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:10px 14px;border-radius:999px;border:1px solid rgba(255,255,255,0.06);backdrop-filter:blur(8px);width:calc(100% - 160px);max-width:1100px}
+.ms-modes{display:flex;gap:8px}
+.mode-btn{padding:8px 12px;border-radius:8px;background:transparent;border:0;color:var(--muted);cursor:pointer;font-weight:700}
+.mode-btn.active{background:rgba(255,255,255,0.02);color:#fff;transform:translateY(-3px)}
+.ms-command-input{flex:1;padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:#fff}
+.ms-command-actions{display:flex;gap:8px}
+
+/* modal */
+.ms-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;z-index:120}
+.ms-modal{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:12px;padding:18px;width:720px;max-width:92%;border:1px solid rgba(255,255,255,0.06);backdrop-filter: blur(8px)}
+.ms-modal h3{margin:0 0 12px 0}
+.ms-field{margin-bottom:12px}
+.ms-field label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+.ms-field textarea{width:100%;min-height:80px;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:#fff;resize:vertical}
+.ms-field input[type="range"]{width:100%}
+
+/* responsive */
+@media (max-width: 980px){
+  .ms-play{flex-direction:column;padding:20px}
+  .ms-side{width:100%}
+  .ms-story-inner{max-height:calc(100vh - 320px)}
+  .ms-command{width:calc(100% - 40px)}
 }

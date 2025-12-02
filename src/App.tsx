@@ -45,6 +45,16 @@ export default function App() {
   const [worldTitle, setWorldTitle] = useState("");
   const [worldSummary, setWorldSummary] = useState("");
 
+  const [characterName, setCharacterName] = useState("");
+  const [characterClass, setCharacterClass] = useState("");
+  const [characterBackground, setCharacterBackground] = useState("");
+
+  const [aiInstructions, setAiInstructions] = useState("");
+  const [authorsNote, setAuthorsNote] = useState("");
+  const [bgGradient, setBgGradient] = useState(
+    "radial-gradient(circle at 10% 10%, #001220, #0d141f)"
+  );
+
   const [mode, setMode] = useState<ModeKey>("story");
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -53,10 +63,9 @@ export default function App() {
   const [historyStack, setHistoryStack] = useState<MessageLine[][]>([]);
   const [redoStack, setRedoStack] = useState<MessageLine[][]>([]);
 
-  const [bgGradient, setBgGradient] = useState<string>(
-    "radial-gradient(circle at 10% 10%, #001220, #0d141f)"
-  );
+  const [opsTab, setOpsTab] = useState<"character" | "world" | "appearance">("character");
 
+  // Auto-scroll story
   useEffect(() => {
     if (storyRef.current) storyRef.current.scrollTop = storyRef.current.scrollHeight;
   }, [lines]);
@@ -76,11 +85,23 @@ export default function App() {
     setView("game");
   }
 
-  function createCustomScenario() {
+  function quickStart() {
     setCurrentScenario(null);
-    setWorldTitle("");
-    setWorldSummary("");
+    setWorldTitle("Custom World");
+    setWorldSummary("A blank world waiting for your story.");
+    const initLines = [
+      { text: "World — Custom World" },
+      { text: "A blank world waiting for your story." },
+    ];
+    setLines(initLines);
+    setHistoryStack([initLines]);
+    setRedoStack([]);
+    setView("game");
+  }
+
+  function createCustomScenario() {
     setOpsOpen(true);
+    setOpsTab("character");
   }
 
   function handleStartCustom() {
@@ -91,8 +112,8 @@ export default function App() {
     setLines(initLines);
     setHistoryStack([initLines]);
     setRedoStack([]);
-    setView("game");
     setOpsOpen(false);
+    setView("game");
   }
 
   // Undo / Redo
@@ -129,13 +150,13 @@ export default function App() {
 
     const userText =
       m === "say"
-        ? `You say: "${input}"`
+        ? `${characterName || "You"} say: "${input}"`
         : m === "do"
-        ? `You attempt: ${input}`
+        ? `${characterName || "You"} attempts: ${input}`
         : m === "think"
-        ? `You think: ${input}`
+        ? `${characterName || "You"} thinks: ${input}`
         : m === "story"
-        ? `You narrate: ${input}`
+        ? `${characterName || "You"} narrates: ${input}`
         : "Continue";
 
     if (m !== "continue") setLines((prev) => [...prev, { text: userText }]);
@@ -144,6 +165,11 @@ export default function App() {
       mode: m,
       message: m === "continue" ? "" : input.trim(),
       worldSummary,
+      characterName,
+      characterClass,
+      characterBackground,
+      aiInstructions,
+      authorsNote,
       history: lines.map((ln) => ln.text).slice(-8),
     };
 
@@ -199,14 +225,14 @@ export default function App() {
 
   return (
     <div
-      className="min-h-screen text-white"
+      className="min-h-screen text-white relative"
       style={{ background: bgGradient, transition: "background 0.5s ease" }}
     >
       {/* Top Nav */}
       <header className="fixed top-0 left-0 right-0 h-16 backdrop-blur-md bg-black/30 z-50 flex items-center justify-between px-6">
         <div
           className="text-xl font-bold cursor-pointer"
-          onClick={() => view === "game" && confirm("Exit game?") && setView("home")}
+          onClick={() => view === "game" && confirm("Exit game? Unsaved progress will be lost.") && setView("home")}
         >
           Manhwa Engine
         </div>
@@ -230,7 +256,131 @@ export default function App() {
         </div>
       </div>
 
-      {/* Main */}
+      {/* Settings / Operations Room Modal */}
+      {opsOpen || settingsOpen ? (
+        <div className="fixed inset-0 flex justify-center items-center modal-backdrop z-50">
+          <div className="bg-black/80 p-6 rounded-lg max-w-2xl w-full text-white">
+            <div className="flex justify-between mb-4">
+              <h2 className="font-bold text-xl">Operations Room</h2>
+              <button onClick={() => { setOpsOpen(false); setSettingsOpen(false); }}>✖️</button>
+            </div>
+            <div className="flex gap-4 mb-4 border-b border-white/20">
+              <button
+                className={`px-2 py-1 ${opsTab === "character" ? "border-b-2 border-cyan-400" : ""}`}
+                onClick={() => setOpsTab("character")}
+              >
+                CHARACTER
+              </button>
+              <button
+                className={`px-2 py-1 ${opsTab === "world" ? "border-b-2 border-cyan-400" : ""}`}
+                onClick={() => setOpsTab("world")}
+              >
+                WORLD RULES
+              </button>
+              <button
+                className={`px-2 py-1 ${opsTab === "appearance" ? "border-b-2 border-cyan-400" : ""}`}
+                onClick={() => setOpsTab("appearance")}
+              >
+                APPEARANCE
+              </button>
+            </div>
+
+            {opsTab === "character" && (
+              <div className="flex flex-col gap-3">
+                <input
+                  type="text"
+                  placeholder="Character Name"
+                  className="p-2 rounded bg-gray-800"
+                  value={characterName}
+                  onChange={(e) => setCharacterName(e.target.value)}
+                />
+                <input
+                  type="text"
+                  placeholder="Class"
+                  className="p-2 rounded bg-gray-800"
+                  value={characterClass}
+                  onChange={(e) => setCharacterClass(e.target.value)}
+                />
+                <textarea
+                  placeholder="Background / Origin Summary"
+                  className="p-2 rounded bg-gray-800"
+                  rows={4}
+                  value={characterBackground}
+                  onChange={(e) => setCharacterBackground(e.target.value)}
+                />
+              </div>
+            )}
+
+            {opsTab === "world" && (
+              <div className="flex flex-col gap-3">
+                <textarea
+                  placeholder="Races, Factions, Places"
+                  className="p-2 rounded bg-gray-800"
+                  rows={3}
+                />
+                <textarea
+                  placeholder="AI Instructions"
+                  className="p-2 rounded bg-gray-800"
+                  rows={3}
+                  value={aiInstructions}
+                  onChange={(e) => setAiInstructions(e.target.value)}
+                />
+                <textarea
+                  placeholder="Author's Note"
+                  className="p-2 rounded bg-gray-800"
+                  rows={3}
+                  value={authorsNote}
+                  onChange={(e) => setAuthorsNote(e.target.value)}
+                />
+                <textarea
+                  placeholder="World / Plot Summary"
+                  className="p-2 rounded bg-gray-800"
+                  rows={3}
+                  value={worldSummary}
+                  onChange={(e) => setWorldSummary(e.target.value)}
+                />
+                <input
+                  type="text"
+                  placeholder="World Title"
+                  className="p-2 rounded bg-gray-800"
+                  value={worldTitle}
+                  onChange={(e) => setWorldTitle(e.target.value)}
+                />
+              </div>
+            )}
+
+            {opsTab === "appearance" && (
+              <div className="flex flex-col gap-3">
+                <label>Background Gradient Color</label>
+                <input
+                  type="color"
+                  value="#0d141f"
+                  onChange={(e) =>
+                    setBgGradient(`radial-gradient(circle at 10% 10%, #001220, ${e.target.value})`)
+                  }
+                />
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 mt-4">
+              <button
+                className="px-3 py-2 rounded bg-cyan-400 text-black font-semibold"
+                onClick={handleStartCustom}
+              >
+                Start Game
+              </button>
+              <button
+                className="px-3 py-2 rounded border border-white/20"
+                onClick={() => { setOpsOpen(false); setSettingsOpen(false); }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Main Content */}
       <main className="pt-20 pb-32">
         {view === "home" && (
           <section className="max-w-6xl mx-auto px-4">
@@ -253,6 +403,14 @@ export default function App() {
                   </div>
                 </div>
               ))}
+            </div>
+            <div className="mt-6">
+              <button
+                className="px-4 py-2 bg-green-500 rounded text-black font-semibold"
+                onClick={quickStart}
+              >
+                Quick Start
+              </button>
             </div>
           </section>
         )}

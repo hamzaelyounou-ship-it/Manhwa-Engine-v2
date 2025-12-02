@@ -2,54 +2,57 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Merriweather:ital,wght@0,300;0,400;0,700&display=swap');
-
-:root {
-  --accent-cyan: #00c7ff;
-  --glass-bg: rgba(255,255,255,0.05);
-}
-
+/* Breathing Dark Gradient Background */
 body {
-  margin: 0;
-  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Arial;
-  background: var(--bg, radial-gradient(circle at 10% 10%, #001220, #0d141f));
-  color: #eaeef0;
+  background: radial-gradient(circle at 10% 10%, #001220, #0d141f);
+  animation: breathe 20s ease-in-out infinite alternate;
+  color: white;
+  min-height: 100vh;
 }
 
-/* subtle breathing background */
 @keyframes breathe {
-  0% { filter: hue-rotate(0deg) brightness(0.96); }
-  50% { filter: hue-rotate(5deg) brightness(1.02); }
-  100% { filter: hue-rotate(0deg) brightness(0.96); }
-}
-body {
-  animation: breathe 25s ease-in-out infinite;
+  0% {
+    background-position: 0% 0%;
+  }
+  50% {
+    background-position: 50% 50%;
+  }
+  100% {
+    background-position: 0% 0%;
+  }
 }
 
-/* story typography */
-.font-serif {
+/* Smooth drawer transitions */
+.drawer {
+  transition: transform 0.3s ease-in-out;
+}
+
+/* Modal backdrop */
+.modal-backdrop {
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(5px);
+}
+
+/* Story text container */
+.story-container {
+  max-width: 64rem; /* max-w-4xl */
+  margin: 0 auto;
+  padding: 3rem;
   font-family: 'Merriweather', serif;
-}
-.font-serif p {
   font-size: 1.125rem;
-  line-height: 1.9;
-  margin-bottom: 1.25rem;
-  color: #eef2f3;
+  line-height: 1.75rem;
 }
 
-/* scrollbar hidden but scrollable */
-::-webkit-scrollbar { width: 0; height: 0; }
-::-webkit-scrollbar-thumb { background: transparent; }
-
-/* glass background utility */
-.bg-glass {
-  background: var(--glass-bg);
-  backdrop-filter: blur(6px) saturate(120%);
-  border: 1px solid rgba(255,255,255,0.08);
+/* Input toolbar */
+.input-toolbar {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(20, 20, 30, 0.6);
+  backdrop-filter: blur(10px);
+  border-radius: 9999px;
+  padding: 0.5rem 1rem;
+  display: flex;
+  gap: 0.5rem;
 }
-
-/* command pill shadow */
-.command-pill {
-  box-shadow: 0 12px 40px rgba(2,6,12,0.6);
-}
-

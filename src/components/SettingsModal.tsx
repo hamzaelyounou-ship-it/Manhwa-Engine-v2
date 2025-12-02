@@ -1,56 +1,161 @@
-import React from "react";
+import React, { useState } from "react";
 
-type Props = {
-  open: boolean;
-  onClose: () => void;
-  authorsNote: string;
-  onAuthorsNoteChange: (v: string) => void;
+interface SettingsModalContentProps {
+  worldTitle: string;
+  setWorldTitle: (val: string) => void;
+  worldSummary: string;
+  setWorldSummary: (val: string) => void;
+  characterName: string;
+  setCharacterName: (val: string) => void;
+  characterClass: string;
+  setCharacterClass: (val: string) => void;
+  characterBackground: string;
+  setCharacterBackground: (val: string) => void;
   aiInstructions: string;
-  onAiInstructionsChange: (v: string) => void;
-  fontSize: number;
-  onFontSizeChange: (n: number) => void;
-};
+  setAiInstructions: (val: string) => void;
+  authorsNote: string;
+  setAuthorsNote: (val: string) => void;
+  bgGradient: string;
+  setBgGradient: (val: string) => void;
+  onClose: () => void;
+  onStart: () => void;
+}
 
-export default function SettingsModal({
-  open,
-  onClose,
-  authorsNote,
-  onAuthorsNoteChange,
+export const SettingsModalContent: React.FC<SettingsModalContentProps> = ({
+  worldTitle,
+  setWorldTitle,
+  worldSummary,
+  setWorldSummary,
+  characterName,
+  setCharacterName,
+  characterClass,
+  setCharacterClass,
+  characterBackground,
+  setCharacterBackground,
   aiInstructions,
-  onAiInstructionsChange,
-  fontSize,
-  onFontSizeChange,
-}: Props) {
-  if (!open) return null;
+  setAiInstructions,
+  authorsNote,
+  setAuthorsNote,
+  bgGradient,
+  setBgGradient,
+  onClose,
+  onStart,
+}) => {
+  const [activeTab, setActiveTab] = useState<"character" | "world" | "appearance">("character");
+
   return (
-    <div className="ms-modal-backdrop" role="dialog" aria-modal="true">
-      <div className="ms-modal">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-          <h3>Engine Settings</h3>
-          <div>
-            <button className="btn" onClick={onClose}>Close</button>
-          </div>
-        </div>
+    <div className="bg-black/80 p-6 rounded-lg max-w-2xl w-full text-white">
+      <div className="flex justify-between mb-4">
+        <h2 className="font-bold text-xl">Operations Room</h2>
+        <button onClick={onClose}>✖️</button>
+      </div>
 
-        <div className="ms-field">
-          <label>Author's Note (context injected into model)</label>
-          <textarea value={authorsNote} onChange={(e) => onAuthorsNoteChange(e.target.value)} placeholder="Tone, important plot hooks, constraints..." />
-        </div>
+      {/* Tabs */}
+      <div className="flex gap-4 mb-4 border-b border-white/20">
+        <button
+          className={`px-2 py-1 ${activeTab === "character" ? "border-b-2 border-cyan-400" : ""}`}
+          onClick={() => setActiveTab("character")}
+        >
+          CHARACTER
+        </button>
+        <button
+          className={`px-2 py-1 ${activeTab === "world" ? "border-b-2 border-cyan-400" : ""}`}
+          onClick={() => setActiveTab("world")}
+        >
+          WORLD RULES
+        </button>
+        <button
+          className={`px-2 py-1 ${activeTab === "appearance" ? "border-b-2 border-cyan-400" : ""}`}
+          onClick={() => setActiveTab("appearance")}
+        >
+          APPEARANCE
+        </button>
+      </div>
 
-        <div className="ms-field">
-          <label>AI Instructions (engine rules)</label>
-          <textarea value={aiInstructions} onChange={(e) => onAiInstructionsChange(e.target.value)} placeholder="Second-person, no repetition, short paragraphs..." />
+      {/* Tab Content */}
+      {activeTab === "character" && (
+        <div className="flex flex-col gap-3">
+          <input
+            type="text"
+            placeholder="Character Name"
+            className="p-2 rounded bg-gray-800"
+            value={characterName}
+            onChange={(e) => setCharacterName(e.target.value)}
+          />
+          <input
+            type="text"
+            placeholder="Class"
+            className="p-2 rounded bg-gray-800"
+            value={characterClass}
+            onChange={(e) => setCharacterClass(e.target.value)}
+          />
+          <textarea
+            placeholder="Background / Origin Summary"
+            className="p-2 rounded bg-gray-800"
+            rows={4}
+            value={characterBackground}
+            onChange={(e) => setCharacterBackground(e.target.value)}
+          />
         </div>
+      )}
 
-        <div className="ms-field">
-          <label>Display — Font Size ({fontSize}px)</label>
-          <input type="range" min={14} max={20} value={fontSize} onChange={(e) => onFontSizeChange(Number(e.target.value))} />
+      {activeTab === "world" && (
+        <div className="flex flex-col gap-3">
+          <input
+            type="text"
+            placeholder="World / Plot Title"
+            className="p-2 rounded bg-gray-800"
+            value={worldTitle}
+            onChange={(e) => setWorldTitle(e.target.value)}
+          />
+          <textarea
+            placeholder="World / Story Summary"
+            className="p-2 rounded bg-gray-800"
+            rows={3}
+            value={worldSummary}
+            onChange={(e) => setWorldSummary(e.target.value)}
+          />
+          <textarea
+            placeholder="AI Instructions"
+            className="p-2 rounded bg-gray-800"
+            rows={3}
+            value={aiInstructions}
+            onChange={(e) => setAiInstructions(e.target.value)}
+          />
+          <textarea
+            placeholder="Author's Note"
+            className="p-2 rounded bg-gray-800"
+            rows={3}
+            value={authorsNote}
+            onChange={(e) => setAuthorsNote(e.target.value)}
+          />
         </div>
+      )}
 
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-          <button className="btn" onClick={onClose}>Done</button>
+      {activeTab === "appearance" && (
+        <div className="flex flex-col gap-3">
+          <label>Background Gradient Color</label>
+          <input
+            type="color"
+            value="#0d141f"
+            onChange={(e) =>
+              setBgGradient(`radial-gradient(circle at 10% 10%, #001220, ${e.target.value})`)
+            }
+          />
         </div>
+      )}
+
+      <div className="flex justify-end gap-2 mt-4">
+        <button
+          className="px-3 py-2 rounded bg-cyan-400 text-black font-semibold"
+          onClick={onStart}
+        >
+          Start Game
+        </button>
+        <button className="px-3 py-2 rounded border border-white/20" onClick={onClose}>
+          Cancel
+        </button>
       </div>
     </div>
   );
-}
+};

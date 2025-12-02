@@ -1,11 +1,7 @@
 {
-  "version": 2,
-  "framework": "vite",
   "functions": {
-    "api/chat.js": {
-      "runtime": "nodejs24.x",
-      "memory": 1024,
-      "maxDuration": 300
+    "api//*": {
+      "maxDuration": 60
     }
   }
 }

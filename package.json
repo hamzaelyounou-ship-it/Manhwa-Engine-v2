@@ -14,7 +14,7 @@
   "dependencies": {
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "eventsource-parser": "^0.2.7",
+    "eventsource-parser": "^1.1.7",
     "lucide-react": "^0.275.0"
   },
   "devDependencies": {

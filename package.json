@@ -9,7 +9,7 @@
     "start:vercel": "vercel dev --listen 3000"
   },
   "engines": {
-    "node": "18.x"
+    "node": "24.x"
   },
   "dependencies": {
     "react": "^18.2.0",

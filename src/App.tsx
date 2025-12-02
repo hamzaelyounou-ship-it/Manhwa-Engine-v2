@@ -1,49 +1,33 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { createParser, ParsedEvent, ReconnectInterval } from "eventsource-parser";
-import { SettingsModalContent } from "./components/SettingsModalContent";
-import { GameToolbar } from "./components/GameToolbar";
 
-type Scenario = {
-  id: string;
-  title: string;
-  desc: string;
-  img?: string;
-  worldSummary?: string;
-};
+type Scenario = { id: string; title: string; desc: string; worldSummary?: string };
+type MessageLine = { text: string };
+type ModeKey = "do" | "say" | "think" | "story" | "continue" | "erase";
 
 const SAMPLE_SCENARIOS: Scenario[] = [
   {
     id: "solo",
-    title: "Solo Leveling — Inspired",
-    desc: "Dark growth tale: low-rank hunter, rising danger.",
-    img: "/scenarios/solo.jpg",
-    worldSummary:
-      "Low-rank dungeons and a ranking system define society. Gates spawn across the city. Hunters gain strength by clearing them.",
+    title: "Solo Leveling",
+    desc: "Low-rank hunter rises in a dangerous world.",
+    worldSummary: "Gates spawn throughout the city; hunters gain strength by clearing them.",
   },
   {
     id: "pirate",
     title: "Grand Sea Voyage",
-    desc: "High-seas adventure, mutiny and treasure.",
-    img: "/scenarios/pirate.jpg",
-    worldSummary:
-      "The world is divided into maritime factions. Ships, crew loyalty, treasure maps — choices and danger wait on the waves.",
+    desc: "High-seas adventure and treasure hunting.",
+    worldSummary: "The seas are divided among factions; ships and crew loyalty are key.",
   },
 ];
 
-type MessageLine = { text: string };
-
 export default function App() {
   const [view, setView] = useState<"home" | "game">("home");
-  const [scenarios] = useState<Scenario[]>(SAMPLE_SCENARIOS);
-  const [currentScenario, setCurrentScenario] = useState<Scenario | null>(null);
   const [lines, setLines] = useState<MessageLine[]>([]);
-  const storyRef = useRef<HTMLDivElement | null>(null);
+  const [currentScenario, setCurrentScenario] = useState<Scenario | null>(null);
 
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [opsOpen, setOpsOpen] = useState(false);
-
-  // Scenario & Character
+  // World / Character Setup
+  const [tabsOpen, setTabsOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"plot" | "rules" | "appearance">("plot");
   const [worldTitle, setWorldTitle] = useState("");
   const [worldSummary, setWorldSummary] = useState("");
   const [characterName, setCharacterName] = useState("");
@@ -55,35 +39,40 @@ export default function App() {
     "radial-gradient(circle at 10% 10%, #001220, #0d141f)"
   );
 
-  const [mode, setMode] = useState("story");
+  // Toolbar & Input
+  const [mode, setMode] = useState<ModeKey>("story");
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const controllerRef = useRef<AbortController | null>(null);
 
+  // History / Undo/Redo
   const [historyStack, setHistoryStack] = useState<MessageLine[][]>([]);
   const [redoStack, setRedoStack] = useState<MessageLine[][]>([]);
+  const storyRef = useRef<HTMLDivElement | null>(null);
 
   // Auto-scroll
   useEffect(() => {
     if (storyRef.current) storyRef.current.scrollTop = storyRef.current.scrollHeight;
   }, [lines]);
 
-  // Scenario handlers
-  function openScenario(s: Scenario) {
-    setCurrentScenario(s);
-    setWorldTitle(s.title);
-    setWorldSummary(s.worldSummary ?? "");
-    const initLines = [
-      { text: `Scenario — ${s.title}: ${s.desc}` },
-      { text: s.worldSummary ?? "The world awaits your story." },
-    ];
-    setLines(initLines);
-    setHistoryStack([initLines]);
-    setRedoStack([]);
-    setView("game");
-  }
+  // Undo/Redo
+  const undo = () => {
+    if (historyStack.length <= 1) return;
+    const prev = historyStack[historyStack.length - 2];
+    setRedoStack([historyStack[historyStack.length - 1], ...redoStack]);
+    setLines(prev);
+    setHistoryStack(historyStack.slice(0, -1));
+  };
+  const redo = () => {
+    if (redoStack.length === 0) return;
+    const next = redoStack[0];
+    setLines(next);
+    setHistoryStack([...historyStack, next]);
+    setRedoStack(redoStack.slice(1));
+  };
 
-  function quickStart() {
+  // Quickstart
+  const quickStart = () => {
     setCurrentScenario(null);
     setWorldTitle("Custom World");
     setWorldSummary("A blank world waiting for your story.");
@@ -95,9 +84,10 @@ export default function App() {
     setHistoryStack([initLines]);
     setRedoStack([]);
     setView("game");
-  }
+  };
 
-  function handleStartCustom() {
+  // Start custom scenario
+  const startCustom = () => {
     const initLines = [
       { text: `World — ${worldTitle || "Custom World"}` },
       { text: worldSummary || "A blank world waiting for your story." },
@@ -105,28 +95,12 @@ export default function App() {
     setLines(initLines);
     setHistoryStack([initLines]);
     setRedoStack([]);
-    setOpsOpen(false);
+    setTabsOpen(false);
     setView("game");
-  }
+  };
 
-  // Undo / Redo
-  function undo() {
-    if (historyStack.length <= 1) return;
-    const prev = historyStack[historyStack.length - 2];
-    setRedoStack([historyStack[historyStack.length - 1], ...redoStack]);
-    setLines(prev);
-    setHistoryStack(historyStack.slice(0, -1));
-  }
-  function redo() {
-    if (redoStack.length === 0) return;
-    const next = redoStack[0];
-    setLines(next);
-    setHistoryStack([...historyStack, next]);
-    setRedoStack(redoStack.slice(1));
-  }
-
-  // Streaming / API
-  async function sendMessage(selectedMode?: string) {
+  // Send message to API
+  const sendMessage = async (selectedMode?: ModeKey) => {
     const m = selectedMode ?? mode;
     if (m !== "continue" && m !== "erase" && !input.trim()) return;
 
@@ -151,19 +125,6 @@ export default function App() {
         : "Continue";
 
     if (m !== "continue") setLines((prev) => [...prev, { text: userText }]);
-
-    const payload = {
-      mode: m,
-      message: m === "continue" ? "" : input.trim(),
-      worldSummary,
-      characterName,
-      characterClass,
-      characterBackground,
-      aiInstructions,
-      authorsNote,
-      history: lines.map((ln) => ln.text).slice(-8),
-    };
-
     setInput("");
     setStreaming(true);
     controllerRef.current = new AbortController();
@@ -172,7 +133,17 @@ export default function App() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          mode: m,
+          message: m === "continue" ? "" : input.trim(),
+          worldSummary,
+          characterName,
+          characterClass,
+          characterBackground,
+          aiInstructions,
+          authorsNote,
+          history: lines.map((l) => l.text).slice(-8),
+        }),
         signal: controllerRef.current.signal,
       });
 
@@ -186,7 +157,6 @@ export default function App() {
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let done = false;
-
       const parser = createParser((event: ParsedEvent | ReconnectInterval) => {
         if (event.type === "event") {
           if (event.data === "[DONE]") return;
@@ -210,130 +180,222 @@ export default function App() {
       setHistoryStack([...historyStack, lines]);
       controllerRef.current = null;
     }
-  }
+  };
 
   return (
     <div
       className="min-h-screen text-white relative"
       style={{ background: bgGradient, transition: "background 0.5s ease" }}
     >
-      {/* Top Nav */}
+      {/* Top Header */}
       <header className="fixed top-0 left-0 right-0 h-16 backdrop-blur-md bg-black/30 z-50 flex items-center justify-between px-6">
-        <div
-          className="text-xl font-bold cursor-pointer"
-          onClick={() =>
-            view === "game" &&
-            confirm("Exit game? Unsaved progress will be lost.") &&
-            setView("home")
-          }
-        >
+        <div className="text-xl font-bold cursor-pointer" onClick={() => setView("home")}>
           Manhwa Engine
         </div>
+        {view === "game" && (
+          <div className="flex gap-2">
+            <button onClick={undo} className="p-2 hover:bg-white/10 rounded">
+              ↩️
+            </button>
+            <button onClick={redo} className="p-2 hover:bg-white/10 rounded">
+              ↪️
+            </button>
+          </div>
+        )}
       </header>
 
-      {/* Home / Game Views */}
       <main className="pt-20 pb-32">
+        {/* HOME VIEW */}
         {view === "home" && (
           <section className="max-w-6xl mx-auto px-4">
             <h1 className="text-3xl font-bold mb-6">Scenario Library</h1>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {scenarios.map((s) => (
+              {SAMPLE_SCENARIOS.map((s) => (
                 <div key={s.id} className="bg-white/5 rounded-lg p-4 flex flex-col">
-                  <div
-                    className="h-36 bg-gray-800 rounded-md mb-3"
-                    style={{
-                      backgroundImage: s.img ? `url(${s.img})` : undefined,
-                      backgroundSize: "cover",
-                    }}
-                  />
                   <h3 className="text-xl font-semibold">{s.title}</h3>
                   <p className="text-sm text-white/70 flex-1 my-2">{s.desc}</p>
                   <div className="flex gap-2 mt-3">
                     <button
-                      className="px-3 py-2 rounded bg-cyan-400 text-black font-semibold"
-                      onClick={() => openScenario(s)}
+                      className="px-3 py-2 rounded bg-green-500 font-semibold"
+                      onClick={quickStart}
                     >
-                      Play
+                      Quick Start
                     </button>
                     <button
-                      className="px-3 py-2 rounded border border-white/10"
-                      onClick={() => setOpsOpen(true)}
+                      className="px-3 py-2 rounded bg-cyan-500 font-semibold"
+                      onClick={() => setTabsOpen(true)}
                     >
-                      Customize
+                      Create World
                     </button>
                   </div>
                 </div>
               ))}
             </div>
-            <div className="mt-6">
-              <button
-                className="px-4 py-2 bg-green-500 rounded text-black font-semibold"
-                onClick={quickStart}
-              >
-                Quick Start
-              </button>
+          </section>
+        )}
+
+        {/* GAME VIEW */}
+        {view === "game" && (
+          <section className="max-w-6xl mx-auto px-4">
+            <div
+              ref={storyRef}
+              className="bg-white/20 p-12 rounded-lg min-h-[60vh] max-h-[72vh] overflow-y-auto font-serif text-lg leading-relaxed"
+            >
+              {lines.map((ln, idx) => (
+                <p key={idx} className="mb-6">
+                  {ln.text}
+                </p>
+              ))}
+              {streaming && <div className="text-white/60 italic">…Loading narrative…</div>}
+            </div>
+
+            {/* Toolbar */}
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-black/40 backdrop-blur-md rounded-full px-4 py-2 flex gap-2 z-50">
+              {["do", "say", "think", "story", "continue", "erase"].map((b) => (
+                <button
+                  key={b}
+                  onClick={() => sendMessage(b as ModeKey)}
+                  className={`px-3 py-1 rounded hover:bg-white/10 ${
+                    mode === b ? "bg-cyan-500 text-black font-semibold" : ""
+                  }`}
+                >
+                  {{
+                    do: "🗡️ Do",
+                    say: "💬 Say",
+                    think: "💭 Think",
+                    story: "📖 Story",
+                    continue: "🔄 Continue",
+                    erase: "🗑️ ERASE",
+                  }[b as ModeKey]}
+                </button>
+              ))}
+              <input
+                type="text"
+                className="ml-2 bg-gray-800/60 px-3 py-1 rounded w-64 focus:outline-none"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Type your action or dialogue..."
+              />
             </div>
           </section>
         )}
 
-        {view === "game" && (
-          <section className="max-w-6xl mx-auto px-4">
-            <article className="mx-auto max-w-4xl">
-              <div
-                ref={storyRef}
-                className="bg-white/20 p-12 rounded-lg min-h-[60vh] max-h-[72vh] overflow-y-auto font-serif text-lg leading-relaxed"
-              >
-                {lines.map((ln, idx) => (
-                  <p key={idx} className="mb-6">
-                    {ln.text}
-                  </p>
+        {/* TABS MODAL */}
+        {tabsOpen && (
+          <div className="fixed inset-0 flex justify-center items-center bg-black/70 z-50">
+            <div className="bg-black/90 p-6 rounded-lg max-w-2xl w-full text-white">
+              <div className="flex justify-between mb-4">
+                <h2 className="font-bold text-xl">Operations Room</h2>
+                <button onClick={() => setTabsOpen(false)}>✖️</button>
+              </div>
+              <div className="flex gap-4 mb-4 border-b border-white/20">
+                {["plot", "rules", "appearance"].map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setActiveTab(t as any)}
+                    className={`px-2 py-1 ${
+                      activeTab === t ? "border-b-2 border-cyan-400" : ""
+                    }`}
+                  >
+                    {t.toUpperCase()}
+                  </button>
                 ))}
-                {streaming && <div className="text-white/60 italic">…Loading narrative…</div>}
               </div>
 
-              <GameToolbar
-                mode={mode}
-                setMode={setMode}
-                sendMessage={sendMessage}
-                input={input}
-                setInput={setInput}
-                undo={undo}
-                redo={redo}
-              />
-            </article>
-          </section>
+              <div className="flex flex-col gap-3">
+                {activeTab === "plot" && (
+                  <>
+                    <input
+                      type="text"
+                      placeholder="World / Plot Title"
+                      className="p-2 rounded bg-gray-800"
+                      value={worldTitle}
+                      onChange={(e) => setWorldTitle(e.target.value)}
+                    />
+                    <textarea
+                      placeholder="Story Summary"
+                      className="p-2 rounded bg-gray-800"
+                      rows={3}
+                      value={worldSummary}
+                      onChange={(e) => setWorldSummary(e.target.value)}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Character Name"
+                      className="p-2 rounded bg-gray-800"
+                      value={characterName}
+                      onChange={(e) => setCharacterName(e.target.value)}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Character Class"
+                      className="p-2 rounded bg-gray-800"
+                      value={characterClass}
+                      onChange={(e) => setCharacterClass(e.target.value)}
+                    />
+                    <textarea
+                      placeholder="Background"
+                      className="p-2 rounded bg-gray-800"
+                      rows={3}
+                      value={characterBackground}
+                      onChange={(e) => setCharacterBackground(e.target.value)}
+                    />
+                  </>
+                )}
+
+                {activeTab === "rules" && (
+                  <>
+                    <textarea
+                      placeholder="AI Instructions"
+                      className="p-2 rounded bg-gray-800"
+                      rows={2}
+                      value={aiInstructions}
+                      onChange={(e) => setAiInstructions(e.target.value)}
+                    />
+                    <textarea
+                      placeholder="Author's Note"
+                      className="p-2 rounded bg-gray-800"
+                      rows={2}
+                      value={authorsNote}
+                      onChange={(e) => setAuthorsNote(e.target.value)}
+                    />
+                  </>
+                )}
+
+                {activeTab === "appearance" && (
+                  <>
+                    <label>Background Color</label>
+                    <input
+                      type="color"
+                      value="#0d141f"
+                      onChange={(e) =>
+                        setBgGradient(
+                          `radial-gradient(circle at 10% 10%, #001220, ${e.target.value})`
+                        )
+                      }
+                    />
+                  </>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-2 mt-4">
+                <button
+                  className="px-3 py-2 rounded bg-cyan-400 text-black font-semibold"
+                  onClick={startCustom}
+                >
+                  Start Game
+                </button>
+                <button
+                  className="px-3 py-2 rounded border border-white/20"
+                  onClick={() => setTabsOpen(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </main>
-
-      {/* Settings Modal */}
-      {(opsOpen || settingsOpen) && (
-        <div className="fixed inset-0 flex justify-center items-center modal-backdrop z-50">
-          <SettingsModalContent
-            worldTitle={worldTitle}
-            setWorldTitle={setWorldTitle}
-            worldSummary={worldSummary}
-            setWorldSummary={setWorldSummary}
-            characterName={characterName}
-            setCharacterName={setCharacterName}
-            characterClass={characterClass}
-            setCharacterClass={setCharacterClass}
-            characterBackground={characterBackground}
-            setCharacterBackground={setCharacterBackground}
-            aiInstructions={aiInstructions}
-            setAiInstructions={setAiInstructions}
-            authorsNote={authorsNote}
-            setAuthorsNote={setAuthorsNote}
-            bgGradient={bgGradient}
-            setBgGradient={setBgGradient}
-            onClose={() => {
-              setOpsOpen(false);
-              setSettingsOpen(false);
-            }}
-            onStart={handleStartCustom}
-          />
-        </div>
-      )}
     </div>
   );
 }
-

@@ -35,13 +35,13 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     }
   });
 
-  // Simulate 5-sentence descriptive narrative
+  // Simulate AI streaming: 5+ descriptive sentences
   const sentences = [
-    `The world breathes as ${data.characterName || "the protagonist"} begins their journey.`,
-    `Factions and races observe silently in the shadows.`,
-    `Hidden dangers lurk around every corner of ${data.worldSummary || "this world"}.`,
-    `Every decision shapes the destiny of the characters.`,
-    `An ominous yet exciting atmosphere envelops the scene.`,
+    `The world is alive as ${data.characterName || "the protagonist"} begins their journey.`,
+    `Hidden factions and secret societies watch silently, plotting intricate schemes.`,
+    `Every choice made in this world resonates and shapes the destiny of all who dwell within.`,
+    `Dangers lurk in the shadows, yet opportunities for glory await the brave.`,
+    `A mysterious aura envelops the land, promising both peril and adventure.`,
   ];
 
   for (const s of sentences) {
@@ -53,3 +53,4 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   res.write("data: [DONE]\n\n");
   res.end();
 }
+

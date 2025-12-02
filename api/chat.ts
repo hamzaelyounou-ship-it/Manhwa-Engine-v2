@@ -1,85 +1,75 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 
+type ChatRequest = {
+  mode: string;
+  message: string;
+  worldSummary: string;
+  characterName: string;
+  characterClass: string;
+  characterBackground: string;
+  aiInstructions: string;
+  authorsNote: string;
+  history: string[];
+};
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "POST") return res.status(405).end("Method Not Allowed");
+  if (req.method !== "POST") return res.status(405).end();
 
-  const {
-    mode,
-    message,
-    characterName,
-    characterClass,
-    race,
-    faction,
-    startingLocation,
-    worldSummary,
-    history,
-  } = req.body;
+  const body: ChatRequest = req.body;
 
-  const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-  if (!OPENROUTER_API_KEY) return res.status(500).json({ error: "Missing API Key" });
+  const prompt = `
+You are an AI storyteller. Respond with at least 5 descriptive sentences.
+Mode: ${body.mode}
+World: ${body.worldSummary}
+Character: ${body.characterName} (${body.characterClass}) Background: ${body.characterBackground}
+Instructions: ${body.aiInstructions}
+Author's Note: ${body.authorsNote}
+Previous History: ${body.history.join("\n")}
 
-  const systemPrompt = `
-You are a cinematic RPG story engine. 
-Always narrate in second-person perspective ("You ...").
-Produce rich, descriptive paragraphs with at least 5 sentences.
-Character: ${characterName || "Unknown"} (${characterClass || "Unknown"})
-Race: ${race || "Unknown"}, Faction: ${faction || "Unknown"}, Location: ${startingLocation || "Unknown"}
-World Summary: ${worldSummary || "No context provided"}
-History: ${history?.join("\n") || ""}
-User Mode: ${mode}
+${body.mode === "story" ? "Continue the story with vivid narration:" : body.message}
 `;
 
   try {
-    const response = await fetch("https://openrouter.ai/api/v1/completions", {
+    // Example: OpenRouter streaming
+    const openRouterApiKey = process.env.OPENROUTER_API_KEY;
+    const response = await fetch("https://api.openrouter.ai/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
+        "Authorization": `Bearer ${openRouterApiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "mistral-7b-instruct",
-        prompt: systemPrompt + (message ? `\nUser Input: ${message}` : ""),
-        max_tokens: 2048,
-        temperature: 0.7,
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: prompt }],
         stream: true,
       }),
     });
 
-    if (!response.body) return res.status(500).json({ error: "No response body from API" });
+    if (!response.ok || !response.body) {
+      const txt = await response.text();
+      return res.status(500).json({ error: txt });
+    }
 
     res.writeHead(200, {
       "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
+      "Cache-Control": "no-cache, no-transform",
       Connection: "keep-alive",
     });
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
-    let done = false;
 
-    const parser = createParser((event: any) => {
-      if (event.type === "event") {
-        if (event.data === "[DONE]") {
-          res.write("data: [DONE]\n\n");
-          res.end();
-        } else {
-          res.write(`data: ${event.data}\n\n`);
-        }
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (value) {
+        const chunk = decoder.decode(value);
+        res.write(`data: ${JSON.stringify({ content: chunk })}\n\n`);
       }
-    });
-
-    while (!done) {
-      const { value, done: d } = await reader.read();
-      done = d;
-      if (value) parser.feed(decoder.decode(value, { stream: true }));
     }
+    res.write("data: [DONE]\n\n");
+    res.end();
   } catch (err: any) {
-    console.error(err);
     res.status(500).json({ error: err.message });
   }
-}
-
-function createParser(callback: (event: any) => void) {
-  const { parse } = require("eventsource-parser");
-  return parse(callback);
 }

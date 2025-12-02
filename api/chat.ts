@@ -6,12 +6,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const {
     mode,
     message,
-    worldSummary,
     characterName,
     characterClass,
-    characterBackground,
-    aiInstructions,
-    authorsNote,
+    race,
+    faction,
+    startingLocation,
+    worldSummary,
     history,
   } = req.body;
 
@@ -19,37 +19,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!OPENROUTER_API_KEY) return res.status(500).json({ error: "Missing API Key" });
 
   const systemPrompt = `
-You are a cinematic Manhwa/Game Story Engine. 
-Always describe events in second-person ("You...").
+You are a cinematic RPG story engine. 
+Always narrate in second-person perspective ("You ...").
 Produce rich, descriptive paragraphs with at least 5 sentences.
-Never prefix responses with "Assistant:".
-Character: ${characterName || "Unknown"} (${characterClass || "Unknown"}, ${
-    characterBackground || "No Background"
-  })
-World Summary: ${worldSummary || "No context"}
-History: ${history?.join("\n") ?? ""}
-AI Instructions: ${aiInstructions || "None"}
-Author's Note: ${authorsNote || "None"}
-Mode: ${mode}
+Character: ${characterName || "Unknown"} (${characterClass || "Unknown"})
+Race: ${race || "Unknown"}, Faction: ${faction || "Unknown"}, Location: ${startingLocation || "Unknown"}
+World Summary: ${worldSummary || "No context provided"}
+History: ${history?.join("\n") || ""}
+User Mode: ${mode}
 `;
 
   try {
     const response = await fetch("https://openrouter.ai/api/v1/completions", {
       method: "POST",
       headers: {
+        "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
         "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
       },
       body: JSON.stringify({
-        model: "gpt-4.1-mini",
-        prompt: systemPrompt + "\nUser: " + message,
+        model: "mistral-7b-instruct",
+        prompt: systemPrompt + (message ? `\nUser Input: ${message}` : ""),
         max_tokens: 2048,
+        temperature: 0.7,
         stream: true,
       }),
     });
 
-    if (!response.ok || !response.body)
-      return res.status(500).json({ error: "Failed to connect to API" });
+    if (!response.body) return res.status(500).json({ error: "No response body from API" });
 
     res.writeHead(200, {
       "Content-Type": "text/event-stream",
@@ -61,16 +57,29 @@ Mode: ${mode}
     const decoder = new TextDecoder();
     let done = false;
 
+    const parser = createParser((event: any) => {
+      if (event.type === "event") {
+        if (event.data === "[DONE]") {
+          res.write("data: [DONE]\n\n");
+          res.end();
+        } else {
+          res.write(`data: ${event.data}\n\n`);
+        }
+      }
+    });
+
     while (!done) {
       const { value, done: d } = await reader.read();
       done = d;
-      if (value) {
-        res.write(decoder.decode(value));
-      }
+      if (value) parser.feed(decoder.decode(value, { stream: true }));
     }
-
-    res.end();
   } catch (err: any) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
+}
+
+function createParser(callback: (event: any) => void) {
+  const { parse } = require("eventsource-parser");
+  return parse(callback);
 }

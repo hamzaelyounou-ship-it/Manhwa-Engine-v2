@@ -1,62 +1,65 @@
-/* Tailwind directives - ensure Tailwind is configured in your project */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Import fonts for a readable webtoon/novel look */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Merriweather:wght@300;400;700&display=swap');
+/* import readable fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Merriweather:ital,wght@0,300;0,400;0,700&display=swap');
 
 :root {
-  --bg-0: #06070a;
-  --bg-1: #07121a;
   --accent-cyan: #00c7ff;
-  --glass: rgba(255,255,255,0.04);
+  --glass-bg: rgba(255,255,255,0.05);
 }
 
-/* Background: dark breathing gradient */
-.bg-background {
-  min-height: 100vh;
-  background:
-    radial-gradient(700px 350px at 12% 14%, rgba(0,30,40,0.38), transparent 18%),
-    radial-gradient(900px 450px at 88% 86%, rgba(18,6,25,0.28), transparent 15%),
-    linear-gradient(180deg, var(--bg-0), var(--bg-1));
-  animation: breathe 20s ease-in-out infinite;
-  background-size: 200% 200%;
-  color: #eaf0f2;
+/* apply global font and background breathing gradient */
+body {
+  margin: 0;
   font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Arial;
+  background: var(--bg, radial-gradient(circle at 10% 10%, #001220, #0d141f));
+  color: #eaeef0;
 }
 
+/* breathing background animation (optional subtle animation) */
 @keyframes breathe {
-  0% { background-position: 0% 0%; filter: hue-rotate(0deg) brightness(.96); }
-  50% { background-position: 100% 100%; filter: hue-rotate(6deg) brightness(1.02); }
-  100% { background-position: 0% 0%; filter: hue-rotate(0deg) brightness(.96); }
+  0% { filter: hue-rotate(0deg) brightness(0.96); }
+  50% { filter: hue-rotate(5deg) brightness(1.02); }
+  100% { filter: hue-rotate(0deg) brightness(0.96); }
+}
+body {
+  animation: breathe 25s ease-in-out infinite;
 }
 
-/* Serif for story text */
-.font-serif { font-family: 'Merriweather', serif; }
+/* typography for story (serif, readable) */
+.font-serif {
+  font-family: 'Merriweather', serif;
+}
+.font-serif p {
+  font-size: 1.125rem;
+  line-height: 1.9;
+  margin-bottom: 1.25rem;
+  color: #eef2f3;
+}
 
-/* Story container styling — wide, centered, very readable */
-.max-w-4xl { max-width: 64rem; } /* 1024px */
-.font-serif p { font-size: 1.125rem; line-height: 1.9; margin-bottom: 1.25rem; color: #eef2f3; }
+/* hide scrollbar but keep scroll functionality */
+::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+::-webkit-scrollbar-thumb {
+  background: transparent;
+}
 
-/* Hide scrollbar while retaining scroll */
-.prose::-webkit-scrollbar { width: 0; height: 0; }
-.prose { scrollbar-width: none; }
-
-/* Drawer slide animation classes rely on transform transitions handled in App.tsx classes */
+/* glass background utility */
 .bg-glass {
-  background: rgba(255,255,255,0.035);
+  background: var(--glass-bg);
   backdrop-filter: blur(6px) saturate(120%);
-  border: 1px solid rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
 }
 
-/* Command pill shadow and rounded style */
+/* command pill styling */
 .command-pill {
-  box-shadow: 0 14px 40px rgba(2,6,12,0.6);
+  box-shadow: 0 12px 40px rgba(2,6,12,0.6);
 }
 
-/* Small responsive polish */
-@media (max-width: 768px) {
-  .max-w-4xl { max-width: 92%; }
-}
+/* modal & drawer layering (Tailwind z-index util classes used) */
 
+/* customize other global tweaks if needed */

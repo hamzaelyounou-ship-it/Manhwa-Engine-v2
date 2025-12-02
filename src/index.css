@@ -1,52 +1,41 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-/* Breathing Dark Gradient Background */
+/* Base Styles */
+html,
 body {
+  margin: 0;
+  padding: 0;
+  font-family: "Inter", sans-serif;
   background: radial-gradient(circle at 10% 10%, #001220, #0d141f);
-  animation: breathe 20s ease-in-out infinite alternate;
   color: white;
-  min-height: 100vh;
+  min-height: 100%;
+  transition: background 0.5s ease;
+  overflow-x: hidden;
 }
 
-@keyframes breathe {
-  0% { background-position: 0% 0%; }
-  50% { background-position: 50% 50%; }
-  100% { background-position: 0% 0%; }
+/* Breathing Gradient Animation */
+@keyframes breathing {
+  0% {
+    background-position: 0% 0%;
+  }
+  50% {
+    background-position: 100% 100%;
+  }
+  100% {
+    background-position: 0% 0%;
+  }
 }
 
-/* Smooth drawer transitions */
-.drawer {
-  transition: transform 0.3s ease-in-out;
+body {
+  background-size: 400% 400%;
+  animation: breathing 30s ease-in-out infinite;
 }
 
-/* Modal backdrop */
+/* Modal Backdrop */
 .modal-backdrop {
   background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(5px);
 }
 
-/* Story text container */
-.story-container {
-  max-width: 64rem; /* max-w-4xl */
-  margin: 0 auto;
-  padding: 3rem;
-  font-family: 'Merriweather', serif;
-  font-size: 1.125rem;
-  line-height: 1.75rem;
-}
-
-/* Input toolbar */
-.input-toolbar {
-  position: fixed;
-  bottom: 2rem;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(20, 20, 30, 0.6);
-  backdrop-filter: blur(10px);
-  border-radius: 9999px;
-  padding: 0.5rem 1rem;
-  display: flex;
-  gap: 0.5rem;
+/* Smooth Drawer Transition */
+.drawer {
+  transition: transform 0.3s ease-in-out;
 }

@@ -1,31 +1,76 @@
+/* Tailwind directives (ensure Tailwind is configured in your project) */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Breathing Gradient */
-.bg-gradient-breathing {
-  background: radial-gradient(circle at top left, #0d0d0d, #000000);
+/* Fonts (optional - include in root HTML if you prefer): Merriweather for story, Inter for UI */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Merriweather:wght@300;400;700&display=swap');
+
+:root {
+  --bg-0: #06070a;
+  --bg-1: #07121a;
+  --accent-cyan: #00c7ff;
+}
+
+/* main background: dark breathing gradient */
+.bg-background {
+  min-height: 100vh;
+  background:
+    radial-gradient(700px 350px at 12% 14%, rgba(0,30,40,0.38), transparent 18%),
+    radial-gradient(900px 450px at 88% 86%, rgba(18,6,25,0.28), transparent 15%),
+    linear-gradient(180deg, var(--bg-0), var(--bg-1));
+  animation: breathe 20s ease-in-out infinite;
   background-size: 200% 200%;
-  animation: breathe 14s ease-in-out infinite;
+  color: #eaeef0;
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
 }
 
 @keyframes breathe {
-  0% { background-position: 0% 0%; }
-  50% { background-position: 100% 100%; }
-  100% { background-position: 0% 0%; }
+  0% { background-position: 0% 0%; filter: hue-rotate(0deg) brightness(.96); }
+  50% { background-position: 100% 100%; filter: hue-rotate(6deg) brightness(1.02); }
+  100% { background-position: 0% 0%; filter: hue-rotate(0deg) brightness(.96); }
 }
 
-/* Hide scrollbars but keep functionality */
-.story-scroll::-webkit-scrollbar {
-  display: none;
+/* serif for story text */
+.font-serif {
+  font-family: 'Merriweather', serif;
 }
-.story-scroll {
+
+/* story container - hide scrollbar visually but keep functionality */
+.prose::-webkit-scrollbar {
+  width: 0px;
+  background: transparent;
+}
+.prose {
   scrollbar-width: none;
 }
 
-/* Serif for story text */
-.font-serif {
-  font-family: "Merriweather", serif;
+/* small utilities for modal / drawer transitions that Tailwind classes complement */
+.z-40 { z-index: 40; }
+.z-50 { z-index: 50; }
+.z-60 { z-index: 60; }
+.z-70 { z-index: 70; }
+
+/* Rounded glass backgrounds */
+.bg-glass {
+  background: rgba(255,255,255,0.04);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,0.04);
 }
 
-/* Drawer animation (handled by Tailwind classes) */
+/* typography fix for large readable text in reader */
+.font-serif p, .font-serif span {
+  font-size: 1.125rem; /* ~18px */
+  line-height: 1.8;
+}
+
+/* ensure command pill and mode toolbar have drop shadows */
+.command-pill {
+  box-shadow: 0 10px 30px rgba(2,6,12,0.6);
+}
+
+/* small responsive tweaks */
+@media (max-width: 768px) {
+  .max-w-4xl { max-width: 90% !important; }
+}
+

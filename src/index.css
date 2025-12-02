@@ -1,18 +1,19 @@
-/* Tailwind directives (ensure Tailwind is configured in your project) */
+/* Tailwind directives - ensure Tailwind is configured in your project */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Fonts (optional - include in root HTML if you prefer): Merriweather for story, Inter for UI */
+/* Import fonts for a readable webtoon/novel look */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Merriweather:wght@300;400;700&display=swap');
 
 :root {
   --bg-0: #06070a;
   --bg-1: #07121a;
   --accent-cyan: #00c7ff;
+  --glass: rgba(255,255,255,0.04);
 }
 
-/* main background: dark breathing gradient */
+/* Background: dark breathing gradient */
 .bg-background {
   min-height: 100vh;
   background:
@@ -21,8 +22,8 @@
     linear-gradient(180deg, var(--bg-0), var(--bg-1));
   animation: breathe 20s ease-in-out infinite;
   background-size: 200% 200%;
-  color: #eaeef0;
-  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+  color: #eaf0f2;
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Arial;
 }
 
 @keyframes breathe {
@@ -31,46 +32,31 @@
   100% { background-position: 0% 0%; filter: hue-rotate(0deg) brightness(.96); }
 }
 
-/* serif for story text */
-.font-serif {
-  font-family: 'Merriweather', serif;
-}
+/* Serif for story text */
+.font-serif { font-family: 'Merriweather', serif; }
 
-/* story container - hide scrollbar visually but keep functionality */
-.prose::-webkit-scrollbar {
-  width: 0px;
-  background: transparent;
-}
-.prose {
-  scrollbar-width: none;
-}
+/* Story container styling — wide, centered, very readable */
+.max-w-4xl { max-width: 64rem; } /* 1024px */
+.font-serif p { font-size: 1.125rem; line-height: 1.9; margin-bottom: 1.25rem; color: #eef2f3; }
 
-/* small utilities for modal / drawer transitions that Tailwind classes complement */
-.z-40 { z-index: 40; }
-.z-50 { z-index: 50; }
-.z-60 { z-index: 60; }
-.z-70 { z-index: 70; }
+/* Hide scrollbar while retaining scroll */
+.prose::-webkit-scrollbar { width: 0; height: 0; }
+.prose { scrollbar-width: none; }
 
-/* Rounded glass backgrounds */
+/* Drawer slide animation classes rely on transform transitions handled in App.tsx classes */
 .bg-glass {
-  background: rgba(255,255,255,0.04);
-  backdrop-filter: blur(6px);
+  background: rgba(255,255,255,0.035);
+  backdrop-filter: blur(6px) saturate(120%);
   border: 1px solid rgba(255,255,255,0.04);
 }
 
-/* typography fix for large readable text in reader */
-.font-serif p, .font-serif span {
-  font-size: 1.125rem; /* ~18px */
-  line-height: 1.8;
-}
-
-/* ensure command pill and mode toolbar have drop shadows */
+/* Command pill shadow and rounded style */
 .command-pill {
-  box-shadow: 0 10px 30px rgba(2,6,12,0.6);
+  box-shadow: 0 14px 40px rgba(2,6,12,0.6);
 }
 
-/* small responsive tweaks */
+/* Small responsive polish */
 @media (max-width: 768px) {
-  .max-w-4xl { max-width: 90% !important; }
+  .max-w-4xl { max-width: 92%; }
 }
 

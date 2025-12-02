@@ -1,5 +1,6 @@
 {
   "name": "manhwa-story-engine-v2",
+  "engines": { "node": "20.x" },
   "version": "1.0.0",
   "private": true,
   "scripts": {

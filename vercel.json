@@ -1,5 +1,6 @@
 {
   "version": 2,
+  "framework": "vite",
   "functions": {
     "api/*.ts": {
       "runtime": "nodejs24.x",

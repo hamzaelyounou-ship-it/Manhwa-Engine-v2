@@ -1,41 +1,33 @@
-/* Base Styles */
-html,
-body {
+html, body, #__next {
   margin: 0;
   padding: 0;
-  font-family: "Inter", sans-serif;
+  height: 100%;
+  font-family: 'Georgia', serif;
   background: radial-gradient(circle at 10% 10%, #001220, #0d141f);
   color: white;
-  min-height: 100%;
   transition: background 0.5s ease;
+}
+
+body {
   overflow-x: hidden;
 }
 
-/* Breathing Gradient Animation */
+button {
+  cursor: pointer;
+}
+
+.modal-backdrop {
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(4px);
+}
+
 @keyframes breathing {
-  0% {
-    background-position: 0% 0%;
-  }
-  50% {
-    background-position: 100% 100%;
-  }
-  100% {
-    background-position: 0% 0%;
-  }
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
 
 body {
-  background-size: 400% 400%;
-  animation: breathing 30s ease-in-out infinite;
-}
-
-/* Modal Backdrop */
-.modal-backdrop {
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(5px);
-}
-
-/* Smooth Drawer Transition */
-.drawer {
-  transition: transform 0.3s ease-in-out;
+  background-size: 200% 200%;
+  animation: breathing 20s ease infinite;
 }

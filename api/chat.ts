@@ -24,7 +24,7 @@ USER_INPUT: ${mode === "continue" ? "[CONTINUE]" : message}
 Continue the scene accordingly.`;
 
   const payload = {
-    model: "meta-llama/llama-3-8b-instruct:free",
+    model: model: "mistralai/mistral-7b-instruct:free",
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: mode === "continue" ? "Continue." : message },

@@ -1,16 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
 
 /**
- * src/App.tsx
- * - Default: HOME screen (scenario library)
- * - Click Play => switches to GAME view
- * - In GAME view: header shows Home (X) icon which triggers Safe Exit modal
- * - Shield icon toggles Status Drawer
- * - Gear icon opens Operations Room (Settings) modal
- * - Create Custom opens Operations Room BEFORE starting a game
- *
- * NOTE: This file intentionally contains everything in one place to avoid missing imports.
- * Replace placeholders (images, API calls) with your real implementations as needed.
+ * App.tsx
+ * - Home (scenario library) default
+ * - Game view when Play clicked
+ * - Shield icon toggles status drawer slide-over
+ * - Operations Room modal for Create Custom, injects worldSummary into API calls
+ * - Five modes: Do, Say, Think, Story, Continue
+ * - Streaming client: POST to /api/chat and append chunks to story area live
  */
 
 type Scenario = {
@@ -18,201 +15,200 @@ type Scenario = {
   title: string;
   desc: string;
   img?: string;
-  authorsNote?: string;
-  aiInstructions?: string;
-  plotEssentials?: string;
-  storySummary?: string;
+  worldSummary?: string;
 };
 
-const DEFAULT_SCENARIOS: Scenario[] = [
+const SAMPLE_SCENARIOS: Scenario[] = [
   {
-    id: "s1",
+    id: "solo",
     title: "Solo Leveling — Inspired",
-    desc: "A dark growth tale. Start weak, climb to power.",
+    desc: "Dark growth tale: low-rank hunter, rising danger.",
     img: "/scenarios/solo.jpg",
-    authorsNote: "Dark tone: player begins weak.",
-    aiInstructions: "Second-person; cinematic sentences; no assistant tags.",
-    plotEssentials: "MC: Jin; Faction: Hunters",
-    storySummary: "Jin wakes bleeding at the gate of a ruined district.",
+    worldSummary:
+      "Low-rank dungeons and a ranking system define society. Gates appear across the city; hunters gain strength by clearing them.",
   },
   {
-    id: "s2",
+    id: "pirate",
     title: "Grand Sea Voyage",
-    desc: "Seafaring choices and mutiny on the horizon.",
+    desc: "High-seas adventure, mutiny and treasure.",
     img: "/scenarios/pirate.jpg",
-    authorsNote: "Adventure tone; emphasize consequences.",
-    aiInstructions: "Second-person; present-tense; vivid imagery.",
-    plotEssentials: "MC: Aya; Ship: Nightingale",
-    storySummary: "The Nightingale catches a strange light at dusk.",
+    worldSummary:
+      "The world is divided into maritime factions. Ships, crew loyalty, and treasure maps drive choices and consequences.",
   },
 ];
 
 export default function App(): JSX.Element {
-  // VIEW: 'home' | 'game'
+  // view state
   const [view, setView] = useState<"home" | "game">("home");
 
-  // UI: drawer, modals
+  // drawer & modals
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [opsOpen, setOpsOpen] = useState(false);
-  const [confirmExitOpen, setConfirmExitOpen] = useState(false);
 
-  // story & scenario
-  const [scenarios] = useState<Scenario[]>(DEFAULT_SCENARIOS);
+  // scenario + story
+  const [scenarios] = useState<Scenario[]>(SAMPLE_SCENARIOS);
   const [currentScenario, setCurrentScenario] = useState<Scenario | null>(null);
   const [lines, setLines] = useState<string[]>([]);
   const storyRef = useRef<HTMLDivElement | null>(null);
 
-  // operations room fields (persisted into each API call)
-  const [authorsNote, setAuthorsNote] = useState("");
-  const [aiInstructions, setAiInstructions] = useState("");
-  const [plotEssentials, setPlotEssentials] = useState("");
-  const [storySummary, setStorySummary] = useState("");
+  // operations room fields (injected as worldSummary)
+  const [worldSummary, setWorldSummary] = useState<string>(""); // large textarea for world context
 
-  // modes: do/say/think/story
-  const [mode, setMode] = useState<"do" | "say" | "think" | "story">("story");
+  // Input / modes
+  const [mode, setMode] = useState<"do" | "say" | "think" | "story" | "continue">("story");
   const [input, setInput] = useState("");
+  const [streaming, setStreaming] = useState(false);
+  const controllerRef = useRef<AbortController | null>(null);
 
-  // simple status values (drawer)
-  const [health] = useState(0.78);
-  const [energy] = useState(0.53);
+  // status (in drawer)
+  const [health] = useState<number>(0.82);
+  const [energy] = useState<number>(0.47);
 
-  // ensure story scrolls down on new lines
+  // autoscroll
   useEffect(() => {
     if (storyRef.current) {
       storyRef.current.scrollTop = storyRef.current.scrollHeight;
     }
   }, [lines]);
 
-  // Start game with scenario (or custom)
-  function startGameWithScenario(scn: Scenario | null) {
-    // populate ops-room fields if scenario provided
-    if (scn) {
-      setAuthorsNote(scn.authorsNote ?? "");
-      setAiInstructions(scn.aiInstructions ?? "");
-      setPlotEssentials(scn.plotEssentials ?? "");
-      setStorySummary(scn.storySummary ?? "");
-      setCurrentScenario(scn);
-      setLines([
-        `Scene: ${scn.title} — ${scn.desc}`,
-        scn.storySummary ?? "The story begins...",
-      ]);
-    } else {
-      // custom created scenario: keep ops fields as-is
-      setCurrentScenario(null);
-      setLines(["A new world awakens."]);
-    }
-
+  // Start playing a scenario (or custom if null)
+  function startGame(scn: Scenario | null) {
+    setCurrentScenario(scn);
+    if (scn && scn.worldSummary) setWorldSummary(scn.worldSummary);
+    // seed story
+    setLines([
+      scn ? `Scene — ${scn.title}: ${scn.desc}` : "A new custom world awakens.",
+      scn?.worldSummary ?? "The world stands clear; define your story with the Operations Room.",
+    ]);
     setView("game");
   }
 
-  // Create custom scenario: open ops modal first
+  // Create custom -> open ops modal first
   function createCustom() {
-    // clear fields for new creation
-    setAuthorsNote("");
-    setAiInstructions("");
-    setPlotEssentials("");
-    setStorySummary("");
+    setWorldSummary("");
     setOpsOpen(true);
   }
 
-  // Safe Exit flow: when clicking header X in game view
-  function attemptExitToHome() {
-    setConfirmExitOpen(true);
+  // send to API and stream
+  async function sendMessage(selectedMode?: typeof mode) {
+    const usedMode = selectedMode ?? mode;
+
+    // For Continue mode, message can be empty; send special command
+    const msgPayload = usedMode === "continue" ? "[CONTINUE]" : input.trim();
+    if (!msgPayload) return;
+
+    // Append a local cue (not necessary but useful)
+    const cue = usedMode === "say" ? `You say: "${msgPayload}"` :
+                usedMode === "do" ? `You do: ${msgPayload}` :
+                usedMode === "think" ? `You think: ${msgPayload}` :
+                usedMode === "story" ? `You narrate: ${msgPayload}` :
+                `Continue:`;
+
+    if (usedMode !== "continue" && input.trim() === "") return;
+    if (usedMode !== "continue") setInput("");
+
+    setLines((prev) => [...prev, cue]);
+
+    // Prepare payload
+    const payload = {
+      mode: usedMode,
+      message: msgPayload,
+      worldSummary,
+      // minimal history could be added here
+      history: lines.slice(-8),
+      scenarioId: currentScenario?.id ?? null,
+    };
+
+    setStreaming(true);
+    controllerRef.current = new AbortController();
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: controllerRef.current.signal,
+      });
+
+      if (!res.ok || !res.body) {
+        const txt = await res.text();
+        setLines((prev) => [...prev, `(error) ${txt}`]);
+        setStreaming(false);
+        return;
+      }
+
+      // create assistant placeholder
+      const assistantId = String(Date.now()) + "-assistant";
+      setLines((prev) => [...prev, ""]); // placeholder empty string appended; we'll replace last empty string with streaming text
+      let assistantIndex = lines.length + 1; // index where we appended placeholder (approx), but simpler approach below
+
+      // We'll stream chunks and append them to the last line incrementally:
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let done = false;
+
+      // We'll maintain current tail text separately and then push updates to lines
+      let tailText = "";
+
+      while (!done) {
+        const { value, done: d } = await reader.read();
+        done = d;
+        if (value) {
+          const chunk = decoder.decode(value);
+          // chunk may contain raw text or SSE 'data:' pieces depending on server
+          // We'll append chunk directly (server sends plain text chunks)
+          tailText += chunk;
+          // update the last line in state
+          setLines((prev) => {
+            // If last element is placeholder (empty or our previous tail), replace it
+            const copy = [...prev];
+            if (copy.length === 0) {
+              copy.push(tailText);
+            } else {
+              // replace last element
+              copy[copy.length - 1] = tailText;
+            }
+            return copy;
+          });
+        }
+      }
+
+      // end stream
+    } catch (err: any) {
+      if (err.name === "AbortError") setLines((prev) => [...prev, "(stream aborted)"]);
+      else setLines((prev) => [...prev, `(stream error) ${err?.message ?? String(err)}`]);
+    } finally {
+      setStreaming(false);
+      controllerRef.current = null;
+    }
   }
 
-  function confirmExit() {
-    // close game and reset minimal state
-    setView("home");
-    setCurrentScenario(null);
-    setLines([]);
-    setConfirmExitOpen(false);
-    setDrawerOpen(false);
+  function stopStream() {
+    controllerRef.current?.abort();
   }
 
-  function cancelExit() {
-    setConfirmExitOpen(false);
-  }
-
-  // Send message (placeholder: append local lines and clear input)
-  async function send() {
-    if (!input.trim()) return;
-
-    // produce a short local line depending on mode then clear input.
-    const prefix =
-      mode === "do" ? "You do: " :
-      mode === "say" ? 'You say: "' :
-      mode === "think" ? "You think: " :
-      "Story: ";
-
-    const content =
-      mode === "say" ? `${prefix}${input}"` : `${prefix}${input}`;
-
-    // append user cue
-    setLines((prev) => [...prev, content]);
-
-    // Placeholder for AI call: here you would call api/chat and stream response
-    // For now simulate a response that observes the mode:
-    setTimeout(() => {
-      const aiResp =
-        mode === "think"
-          ? `You feel the memory twist — an internal whisper answers: \"${input}\".`
-          : mode === "do"
-          ? `The world reacts: ${input} causes a low metallic groan nearby.`
-          : mode === "say"
-          ? `A voice returns: The alley answers your words with silence, then a soft reply.`
-          : `The narration continues: ${input}`;
-
-      setLines((prev) => [...prev, aiResp]);
-    }, 450);
-
-    setInput("");
-  }
-
+  // UI components simplified below
   return (
-    <div className="min-h-screen bg-background text-white">
-
-      {/* Top Nav */}
-      <header className="fixed top-0 left-0 right-0 h-16 bg-black/30 backdrop-blur-md flex items-center justify-between px-6 z-40">
-        <div className="flex items-center gap-4">
-          <div
-            className="text-lg font-semibold cursor-pointer"
-            onClick={() => {
-              // If on home, do nothing. If on game, treat as safe-exit attempt.
-              if (view === "game") attemptExitToHome();
-              else setView("home");
-            }}
-            aria-label="Home / Exit"
-            title={view === "game" ? "Exit to Home (confirm)" : "Home"}
-          >
-            {/* show X icon when in game to indicate 'leave' */}
-            {view === "game" ? "✖" : "🏠"} Manhwa Engine
+    <div className="min-h-screen bg-background text-white font-sans">
+      {/* Top nav */}
+      <header className="fixed top-0 left-0 right-0 h-16 bg-black/30 backdrop-blur-md z-40 flex items-center justify-between px-6">
+        <div className="flex items-center gap-3">
+          <div className="text-lg font-semibold cursor-pointer" onClick={() => { if (view === "game") { /* confirm before exit? */ if (confirm("Exit to Home? Unsaved progress will be lost.")) { setView("home"); setLines([]); } } else { setView("home"); } }}>
+            Manhwa Engine
           </div>
         </div>
 
         <div className="flex items-center gap-3">
           {/* Shield toggles drawer */}
-          <button
-            onClick={() => setDrawerOpen((s) => !s)}
-            className="p-2 rounded hover:bg-white/5"
-            aria-label="Toggle Status Drawer"
-          >
-            🛡️
-          </button>
-
-          {/* Gear opens Operations Room */}
-          <button
-            onClick={() => setOpsOpen(true)}
-            className="p-2 rounded hover:bg-white/5"
-            aria-label="Open Operations Room"
-          >
-            ⚙️
-          </button>
+          <button className="p-2 hover:bg-white/5 rounded" onClick={() => setDrawerOpen((s) => !s)} aria-label="Toggle status drawer">🛡️</button>
+          {/* Gear opens operations room */}
+          <button className="p-2 hover:bg-white/5 rounded" onClick={() => setOpsOpen(true)} aria-label="Open Operations Room">⚙️</button>
         </div>
       </header>
 
-      {/* MAIN CONTENT */}
-      <main className="pt-20 pb-36">
-        {/* HOME: Scenario Library */}
+      {/* Main */}
+      <main className="pt-20 pb-32">
+        {/* Home: scenario library */}
         {view === "home" && (
           <section className="max-w-6xl mx-auto px-4">
             <h1 className="text-3xl font-bold mb-6">Scenario Library</h1>
@@ -224,74 +220,46 @@ export default function App(): JSX.Element {
                   <h3 className="text-xl font-semibold">{s.title}</h3>
                   <p className="text-sm text-white/70 flex-1 my-2">{s.desc}</p>
                   <div className="flex gap-2 mt-3">
-                    <button
-                      className="px-3 py-2 rounded bg-blue-600 text-black font-semibold"
-                      onClick={() => startGameWithScenario(s)}
-                    >
-                      Play
-                    </button>
-                    <button
-                      className="px-3 py-2 rounded border border-white/10"
-                      onClick={() => {
-                        // load scenario fields into ops modal for editing, then open ops modal
-                        setAuthorsNote(s.authorsNote ?? "");
-                        setAiInstructions(s.aiInstructions ?? "");
-                        setPlotEssentials(s.plotEssentials ?? "");
-                        setStorySummary(s.storySummary ?? "");
-                        setOpsOpen(true);
-                      }}
-                    >
-                      Customize
-                    </button>
+                    <button className="px-3 py-2 rounded bg-cyan-400 text-black font-semibold" onClick={() => startGame(s)}>Play</button>
+                    <button className="px-3 py-2 rounded border border-white/10" onClick={() => { setWorldSummary(s.worldSummary ?? ""); setOpsOpen(true); }}>Customize</button>
                   </div>
                 </div>
               ))}
 
-              {/* Create Custom card */}
+              {/* Create Custom */}
               <div className="bg-white/5 rounded-lg p-6 flex items-center justify-center cursor-pointer hover:bg-white/6" onClick={createCustom}>
                 <div className="text-center">
                   <div className="text-4xl mb-2">＋</div>
                   <div className="font-semibold">Create Custom</div>
-                  <div className="text-sm text-white/70 mt-1">Open Operations Room to define your world.</div>
+                  <div className="text-sm text-white/70 mt-1">Define your World Summary / Plot Essentials before starting.</div>
                 </div>
               </div>
             </div>
           </section>
         )}
 
-        {/* GAME view */}
+        {/* Game view */}
         {view === "game" && (
           <section className="max-w-6xl mx-auto px-4">
-            <div className="md:flex md:items-start md:gap-8">
-              {/* Wide Story Reader (centered column) */}
-              <article className="w-full max-w-4xl mx-auto">
-                <div
-                  ref={storyRef}
-                  className="bg-white/3 rounded-lg p-10 min-h-[60vh] max-h-[70vh] overflow-y-auto prose prose-invert"
-                >
-                  {lines.length === 0 ? (
-                    <p className="text-lg text-white/70">No content yet — use the command pill below to begin.</p>
-                  ) : (
-                    lines.map((ln, i) => (
-                      <p key={i} className="mb-6 text-lg leading-relaxed font-serif">{ln}</p>
-                    ))
-                  )}
-                </div>
-              </article>
-            </div>
+            <article className="mx-auto max-w-4xl">
+              <div ref={storyRef} className="bg-white/3 p-12 rounded-lg min-h-[60vh] max-h-[72vh] overflow-y-auto font-serif text-lg leading-relaxed prose prose-invert">
+                {lines.length === 0 ? (
+                  <p className="text-white/70">No narrative yet — use the toolbar to begin.</p>
+                ) : (
+                  lines.map((ln, i) => <p key={i} className="mb-6">{ln}</p>)
+                )}
+              </div>
+            </article>
           </section>
         )}
       </main>
 
-      {/* Status Drawer (Slide-over) */}
-      <div
-        className={`fixed right-0 top-16 h-[calc(100%-4rem)] w-80 bg-black/60 backdrop-blur-md border-l border-white/6 z-50 transform transition-all duration-300 ${drawerOpen ? "translate-x-0" : "translate-x-full"}`}
-        aria-hidden={!drawerOpen}
-      >
+      {/* Status Drawer (slide-over) */}
+      <div className={`fixed top-16 right-0 h-[calc(100%-4rem)] w-80 bg-black/60 backdrop-blur-md border-l border-white/6 z-50 transform transition-transform duration-300 ${drawerOpen ? "translate-x-0" : "translate-x-full"}`}>
         <div className="p-4">
           <div className="flex justify-between items-center mb-4">
             <h4 className="font-semibold">Status</h4>
-            <button onClick={() => setDrawerOpen(false)} className="p-1">✖</button>
+            <button onClick={() => setDrawerOpen(false)}>✖</button>
           </div>
 
           <div className="space-y-4">
@@ -310,18 +278,14 @@ export default function App(): JSX.Element {
             </div>
 
             <div>
-              <div className="text-sm text-white/70 mb-2">Stats</div>
-              <ul className="text-sm space-y-1">
-                <li>Strength: 8</li>
-                <li>Agility: 6</li>
-                <li>Perception: 5</li>
-              </ul>
+              <div className="text-sm text-white/70 mb-2">Inventory / Notes</div>
+              <div className="text-sm text-white/70">No items yet.</div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Command Pill & Mode Toolbar (only in GAME view) */}
+      {/* Toolbar + Command Pill (only in Game view) */}
       {view === "game" && (
         <>
           <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-40 flex gap-3">
@@ -329,68 +293,37 @@ export default function App(): JSX.Element {
             <button className={`px-4 py-2 rounded-full ${mode === "say" ? "bg-white/30" : "bg-white/10"}`} onClick={() => setMode("say")}>💬 Say</button>
             <button className={`px-4 py-2 rounded-full ${mode === "think" ? "bg-white/30" : "bg-white/10"}`} onClick={() => setMode("think")}>💭 Think</button>
             <button className={`px-4 py-2 rounded-full ${mode === "story" ? "bg-white/30" : "bg-white/10"}`} onClick={() => setMode("story")}>📖 Story</button>
+            <button className={`px-4 py-2 rounded-full ${mode === "continue" ? "bg-white/30" : "bg-white/10"}`} onClick={() => { setMode("continue"); /* immediately request continue when clicked */ sendMessage("continue"); }}>🔄 Continue</button>
           </div>
 
           <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 w-[90%] max-w-3xl">
             <div className="bg-white/6 backdrop-blur-md rounded-full flex items-center gap-3 px-4 py-3">
-              <input
-                className="flex-1 bg-transparent outline-none text-white placeholder-white/60"
-                placeholder={mode === "say" ? "Speak out loud..." : mode === "do" ? "Describe an action..." : mode === "think" ? "Your thoughts..." : "Narrate..."}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { send(); } }}
-              />
-              <button className="px-4 py-2 rounded-full bg-cyan-400 text-black font-semibold" onClick={() => send()}>Send</button>
+              <input className="flex-1 bg-transparent outline-none text-white placeholder-white/60" placeholder={
+                mode === "say" ? "Speak out loud..." :
+                mode === "do" ? "Describe an action..." :
+                mode === "think" ? "Your internal thoughts..." :
+                "Narrate..." } value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") sendMessage(); }} />
+              <button className="px-4 py-2 rounded-full bg-cyan-400 text-black font-semibold" onClick={() => sendMessage()}>Send</button>
+              {streaming && <button className="ml-2 px-3 py-2 rounded bg-white/10" onClick={() => stopStream()}>Stop</button>}
             </div>
           </div>
         </>
       )}
 
-      {/* Operations Room modal */}
+      {/* Operations Room Modal */}
       {opsOpen && (
         <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/50" onClick={() => setOpsOpen(false)}>
-          <div className="bg-white/5 backdrop-blur-md p-6 rounded-lg w-[min(880px,96%)]" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-xl font-semibold mb-3">Operations Room</h3>
+          <div className="bg-white/5 p-6 rounded-lg w-[min(920px,96%)]" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-xl font-semibold mb-3">Operations Room — World Summary / Plot Essentials</h3>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm text-white/70 mb-1">Author's Note</label>
-                <textarea className="w-full min-h-[120px] bg-transparent border border-white/6 rounded p-2" value={authorsNote} onChange={(e) => setAuthorsNote(e.target.value)} />
-              </div>
-
-              <div>
-                <label className="block text-sm text-white/70 mb-1">AI Instructions</label>
-                <textarea className="w-full min-h-[120px] bg-transparent border border-white/6 rounded p-2" value={aiInstructions} onChange={(e) => setAiInstructions(e.target.value)} />
-              </div>
-
-              <div>
-                <label className="block text-sm text-white/70 mb-1">Plot Essentials</label>
-                <textarea className="w-full min-h-[80px] bg-transparent border border-white/6 rounded p-2" value={plotEssentials} onChange={(e) => setPlotEssentials(e.target.value)} />
-              </div>
-
-              <div>
-                <label className="block text-sm text-white/70 mb-1">Story Summary</label>
-                <textarea className="w-full min-h-[80px] bg-transparent border border-white/6 rounded p-2" value={storySummary} onChange={(e) => setStorySummary(e.target.value)} />
-              </div>
+            <div className="mb-3">
+              <label className="block text-sm text-white/70 mb-1">World Summary / Plot Essentials</label>
+              <textarea className="w-full min-h-[160px] bg-transparent border border-white/6 rounded p-3" value={worldSummary} onChange={(e) => setWorldSummary(e.target.value)} placeholder="Define settings, factions, world rules, ranks, gates, main characters..." />
             </div>
 
-            <div className="mt-4 flex justify-end gap-3">
-              <button className="px-4 py-2 rounded bg-white/6" onClick={() => setOpsOpen(false)}>Cancel</button>
-              <button className="px-4 py-2 rounded bg-cyan-400 text-black font-semibold" onClick={() => { setOpsOpen(false); /* if on home and custom creation, start game */ if (view === "home" && !currentScenario) { startGameWithScenario(null); } }}>Save</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Confirm Exit Modal */}
-      {confirmExitOpen && (
-        <div className="fixed inset-0 z-70 flex items-center justify-center bg-black/60">
-          <div className="bg-white/5 p-6 rounded-lg max-w-md w-full">
-            <h4 className="text-lg font-semibold mb-2">Are you sure you want to exit?</h4>
-            <p className="text-sm text-white/70 mb-4">Unsaved progress will be lost.</p>
             <div className="flex justify-end gap-3">
-              <button className="px-3 py-2 rounded bg-white/6" onClick={cancelExit}>Cancel</button>
-              <button className="px-3 py-2 rounded bg-red-600 text-black font-semibold" onClick={confirmExit}>Exit</button>
+              <button className="px-4 py-2 rounded bg-white/6" onClick={() => setOpsOpen(false)}>Cancel</button>
+              <button className="px-4 py-2 rounded bg-cyan-400 text-black font-semibold" onClick={() => { setOpsOpen(false); /* If user created world while on Home, start game */ if (view === "home" && !currentScenario) startGame(null); }}>Save</button>
             </div>
           </div>
         </div>

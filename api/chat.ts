@@ -23,7 +23,9 @@ You are a cinematic Manhwa/Game Story Engine.
 Always describe events in second-person ("You...").
 Produce rich, descriptive paragraphs with at least 5 sentences.
 Never prefix responses with "Assistant:".
-Character: ${characterName || "Unknown"} (${characterClass || "Unknown"}, ${characterBackground || "No Background"})
+Character: ${characterName || "Unknown"} (${characterClass || "Unknown"}, ${
+    characterBackground || "No Background"
+  })
 World Summary: ${worldSummary || "No context"}
 History: ${history?.join("\n") ?? ""}
 AI Instructions: ${aiInstructions || "None"}
@@ -35,22 +37,25 @@ Mode: ${mode}
     const response = await fetch("https://openrouter.ai/api/v1/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
         "Content-Type": "application/json",
+        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
       },
       body: JSON.stringify({
-        model: "meta-llama/llama-3-8b-instruct:free",
-        stream: true,
-        input: `${systemPrompt}\n${message}`,
+        model: "gpt-4.1-mini",
+        prompt: systemPrompt + "\nUser: " + message,
         max_tokens: 2048,
+        stream: true,
       }),
     });
 
-    if (!response.body) return res.status(500).json({ error: "No response body" });
+    if (!response.ok || !response.body)
+      return res.status(500).json({ error: "Failed to connect to API" });
 
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    });
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -60,8 +65,7 @@ Mode: ${mode}
       const { value, done: d } = await reader.read();
       done = d;
       if (value) {
-        const chunk = decoder.decode(value, { stream: true });
-        res.write(chunk);
+        res.write(decoder.decode(value));
       }
     }
 
@@ -70,5 +74,3 @@ Mode: ${mode}
     res.status(500).json({ error: err.message });
   }
 }
-
-

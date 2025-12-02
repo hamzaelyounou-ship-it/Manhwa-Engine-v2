@@ -2,7 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* import readable fonts */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Merriweather:ital,wght@0,300;0,400;0,700&display=swap');
 
 :root {
@@ -10,7 +9,6 @@
   --glass-bg: rgba(255,255,255,0.05);
 }
 
-/* apply global font and background breathing gradient */
 body {
   margin: 0;
   font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Arial;
@@ -18,7 +16,7 @@ body {
   color: #eaeef0;
 }
 
-/* breathing background animation (optional subtle animation) */
+/* subtle breathing background */
 @keyframes breathe {
   0% { filter: hue-rotate(0deg) brightness(0.96); }
   50% { filter: hue-rotate(5deg) brightness(1.02); }
@@ -28,7 +26,7 @@ body {
   animation: breathe 25s ease-in-out infinite;
 }
 
-/* typography for story (serif, readable) */
+/* story typography */
 .font-serif {
   font-family: 'Merriweather', serif;
 }
@@ -39,14 +37,9 @@ body {
   color: #eef2f3;
 }
 
-/* hide scrollbar but keep scroll functionality */
-::-webkit-scrollbar {
-  width: 0;
-  height: 0;
-}
-::-webkit-scrollbar-thumb {
-  background: transparent;
-}
+/* scrollbar hidden but scrollable */
+::-webkit-scrollbar { width: 0; height: 0; }
+::-webkit-scrollbar-thumb { background: transparent; }
 
 /* glass background utility */
 .bg-glass {
@@ -55,11 +48,8 @@ body {
   border: 1px solid rgba(255,255,255,0.08);
 }
 
-/* command pill styling */
+/* command pill shadow */
 .command-pill {
   box-shadow: 0 12px 40px rgba(2,6,12,0.6);
 }
 
-/* modal & drawer layering (Tailwind z-index util classes used) */
-
-/* customize other global tweaks if needed */

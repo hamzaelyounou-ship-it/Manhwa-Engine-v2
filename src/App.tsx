@@ -12,62 +12,52 @@ const SAMPLE_SCENARIOS: Scenario[] = [
   {
     id: "solo",
     title: "Solo Leveling — Inspired",
-    desc: "Dark growth tale: low‑rank hunter, rising danger.",
+    desc: "Dark growth tale: low-rank hunter, rising danger.",
     img: "/scenarios/solo.jpg",
     worldSummary:
-      "Low‑rank dungeons and a ranking system define society. Gates spawn across the city. Hunters gain strength by clearing them.",
+      "Low-rank dungeons and a ranking system define society. Gates spawn across the city. Hunters gain strength by clearing them.",
   },
   {
     id: "pirate",
     title: "Grand Sea Voyage",
-    desc: "High‑seas adventure, mutiny and treasure.",
+    desc: "High-seas adventure, mutiny and treasure.",
     img: "/scenarios/pirate.jpg",
     worldSummary:
       "The world is divided into maritime factions. Ships, crew loyalty, treasure maps — choices and danger wait on the waves.",
   },
 ];
 
-type MessageLine = { text: string; };
-
-// Modes
+type MessageLine = { text: string };
 type ModeKey = "do" | "say" | "think" | "story" | "continue";
 
 export default function App() {
   const [view, setView] = useState<"home" | "game">("home");
-
   const [scenarios] = useState<Scenario[]>(SAMPLE_SCENARIOS);
   const [currentScenario, setCurrentScenario] = useState<Scenario | null>(null);
-
-  // Story lines
   const [lines, setLines] = useState<MessageLine[]>([]);
   const storyRef = useRef<HTMLDivElement | null>(null);
 
-  // Drawer / Modals
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [opsOpen, setOpsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  // World / Scenario creation fields
   const [worldTitle, setWorldTitle] = useState("");
   const [worldSummary, setWorldSummary] = useState("");
 
-  // Input / Mode
   const [mode, setMode] = useState<ModeKey>("story");
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const controllerRef = useRef<AbortController | null>(null);
 
-  // Background gradient state
-  const [bgGradient, setBgGradient] = useState<string>("radial-gradient(circle at 10% 10%, #001220, #0d141f)");
+  const [bgGradient, setBgGradient] = useState<string>(
+    "radial-gradient(circle at 10% 10%, #001220, #0d141f)"
+  );
 
-  // Status placeholder
   const [health] = useState(0.8);
   const [energy] = useState(0.5);
 
   useEffect(() => {
-    if (storyRef.current) {
-      storyRef.current.scrollTop = storyRef.current.scrollHeight;
-    }
+    if (storyRef.current) storyRef.current.scrollTop = storyRef.current.scrollHeight;
   }, [lines]);
 
   function openScenario(s: Scenario) {
@@ -82,7 +72,6 @@ export default function App() {
   }
 
   function createCustomScenario() {
-    // Reset fields
     setCurrentScenario(null);
     setWorldTitle("");
     setWorldSummary("");
@@ -90,7 +79,6 @@ export default function App() {
   }
 
   function handleStartCustom() {
-    // Use worldTitle and worldSummary to seed
     setLines([
       { text: `World — ${worldTitle || "Custom World"}` },
       { text: worldSummary || "A blank world waiting for your story." },
@@ -101,7 +89,6 @@ export default function App() {
 
   async function sendMessage(useMode?: ModeKey) {
     const m = useMode ?? mode;
-
     if (m !== "continue" && !input.trim()) return;
 
     const userText =
@@ -115,9 +102,7 @@ export default function App() {
         ? `You narrate: ${input}`
         : "Continue";
 
-    if (m !== "continue") {
-      setLines((prev) => [...prev, { text: userText }]);
-    }
+    if (m !== "continue") setLines((prev) => [...prev, { text: userText }]);
 
     const payload = {
       mode: m,
@@ -154,7 +139,6 @@ export default function App() {
         done = d;
         if (value) {
           acc += decoder.decode(value);
-          // update last line progressively
           setLines((prev) => {
             const copy = [...prev];
             copy.push({ text: acc });
@@ -213,7 +197,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* Settings Modal (Background Picker) */}
+      {/* Settings Modal */}
       {settingsOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center" onClick={() => setSettingsOpen(false)}>
           <div className="bg-white/10 backdrop-blur-md p-6 rounded-lg w-[90%] max-w-md" onClick={(e) => e.stopPropagation()}>
@@ -237,15 +221,12 @@ export default function App() {
         </div>
       )}
 
-      {/* Operations Room Modal (for Create / Customize) */}
+      {/* Operations Room Modal */}
       {opsOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center" onClick={() => setOpsOpen(false)}>
           <div className="bg-white/10 backdrop-blur-md p-6 rounded-lg w-[90%] max-w-2xl" onClick={(e) => e.stopPropagation()}>
             <TabView
-              onConfirm={() => {
-                setOpsOpen(false);
-                if (view === "home") startGame(null);
-              }}
+              onConfirm={handleStartCustom}
               worldTitle={worldTitle}
               setWorldTitle={setWorldTitle}
               worldSummary={worldSummary}
@@ -349,7 +330,6 @@ export default function App() {
   );
 }
 
-/** TabView component for the Operations Room (inside App.tsx) */
 function TabView(props: {
   worldTitle: string;
   setWorldTitle: (v: string) => void;

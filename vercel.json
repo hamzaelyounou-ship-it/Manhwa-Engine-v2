@@ -1,11 +1,13 @@
 {
   "version": 2,
-  "framework": "vite",
   "functions": {
     "api/chat.ts": {
       "runtime": "nodejs18.x",
       "memory": 1024,
       "maxDuration": 300
     }
-  }
+  },
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/api/$1.ts" }
+  ]
 }

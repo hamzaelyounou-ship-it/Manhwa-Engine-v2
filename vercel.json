@@ -5,7 +5,7 @@
     "api/chat.ts": {
       "runtime": "nodejs18.x",
       "memory": 1024,
-      "maxDuration": 900
+      "maxDuration": 300
     }
   }
 }

@@ -1,55 +1,63 @@
-import { IncomingMessage, ServerResponse } from "http";
-import { createParser, ParsedEvent, ReconnectInterval } from "eventsource-parser";
+import React, { useState } from "react";
+import GameInterface from "./components/GameInterface";
+import CreationModal from "./components/CreationModal";
+import GameToolbar from "./components/GameToolbar";
 
-export default async function handler(req: IncomingMessage, res: ServerResponse) {
-  if (req.method !== "POST") {
-    res.statusCode = 405;
-    res.end("Method Not Allowed");
-    return;
-  }
+export default function App() {
+  const [view, setView] = useState<"HOME" | "GAME">("HOME");
+  const [modalOpen, setModalOpen] = useState(false);
+  const [worldData, setWorldData] = useState<any>({});
 
-  let body = "";
-  for await (const chunk of req) body += chunk;
+  const handleStartGame = (data: any) => {
+    setWorldData(data);
+    setView("GAME");
+  };
 
-  let data: any;
-  try {
-    data = JSON.parse(body);
-  } catch {
-    res.statusCode = 400;
-    res.end("Invalid JSON");
-    return;
-  }
+  return (
+    <div className="min-h-screen bg-background text-white">
+      {/* Top Navbar */}
+      <header className="flex justify-between items-center p-4 bg-gray-900">
+        <div className="text-2xl font-bold">Manhwa Engine</div>
+        <div className="flex gap-4">
+          {/* Undo/Redo placeholders */}
+          <button className="hover:text-cyan-400">↩️ Undo</button>
+          <button className="hover:text-cyan-400">↪️ Redo</button>
+          <button onClick={() => setModalOpen(true)} className="hover:text-cyan-400">⚙️ Customize</button>
+        </div>
+      </header>
 
-  res.writeHead(200, {
-    "Content-Type": "text/event-stream",
-    "Cache-Control": "no-cache, no-transform",
-    Connection: "keep-alive",
-  });
+      {/* Home Screen */}
+      {view === "HOME" && (
+        <main className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-gray-800 p-4 rounded hover:bg-gray-700 cursor-pointer"
+            onClick={() => handleStartGame({ default: true })}>
+            <h2 className="text-xl font-bold mb-2">Quick Start</h2>
+            <p>Start immediately with default scenario.</p>
+          </div>
+          <div className="bg-gray-800 p-4 rounded hover:bg-gray-700 cursor-pointer"
+            onClick={() => setModalOpen(true)}>
+            <h2 className="text-xl font-bold mb-2">Create Custom</h2>
+            <p>Define a new scenario using tabs.</p>
+          </div>
+        </main>
+      )}
 
-  const parser = createParser((event: ParsedEvent | ReconnectInterval) => {
-    if (event.type === "event" && event.data !== "[DONE]") {
-      try {
-        const payload = JSON.parse(event.data);
-        if (payload?.content) res.write(`data: ${JSON.stringify(payload)}\n\n`);
-      } catch {}
-    }
-  });
+      {/* Game Screen */}
+      {view === "GAME" && (
+        <>
+          <GameInterface
+            worldSummary={worldData}
+          />
+          <GameToolbar onSelectMode={(mode) => console.log("Selected mode:", mode)} />
+        </>
+      )}
 
-  // Generate robust narrative: minimum 5 sentences
-  const sentences = [
-    `The world awakens as ${data.characterName || "the protagonist"} takes their first step into the adventure.`,
-    `Every shadow hints at secrets and dangers that could alter the course of their journey.`,
-    `Allies and rivals alike watch, waiting for opportunities to test the hero's resolve.`,
-    `The environment reacts dynamically, shaping the narrative with every choice made.`,
-    `A sense of mystery and excitement fills the air, drawing ${data.characterName || "them"} forward.`,
-  ];
-
-  for (const s of sentences) {
-    const payload = { content: s };
-    res.write(`data: ${JSON.stringify(payload)}\n\n`);
-    await new Promise((r) => setTimeout(r, 500));
-  }
-
-  res.write("data: [DONE]\n\n");
-  res.end();
+      {/* Creation Modal */}
+      <CreationModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onSave={handleStartGame}
+      />
+    </div>
+  );
 }

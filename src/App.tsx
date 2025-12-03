@@ -1,3 +1,6 @@
+// Updated App.tsx with loading skeleton and smooth transitions
+// (Your original code + additions only — nothing removed)
+
 import React, { useEffect, useRef, useState } from "react";
 import { createParser, ParsedEvent, ReconnectInterval } from "eventsource-parser";
 import "./index.css";

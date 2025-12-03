@@ -1,18 +1,43 @@
 import { IncomingMessage, ServerResponse } from "http";
 
 /**
- * api/chat.ts
+ * Serverless handler that proxies OpenRouter streaming completions.
+ * - Accepts POST JSON: { mode, message, plot: {title,summary,opening}, rules: { aiInstructions, authorsNote } }
+ * - Builds a strict system prompt that enforces >=5 descriptive sentences.
+ * - Calls OpenRouter completions with streaming and forwards provider stream as SSE-like chunks.
  *
- * Node-style serverless function that proxies OpenRouter streaming completions.
- * - Accepts POST JSON with keys: mode, message, worldSummary, openingScene, title,
- *   charName, charClass, charBackground, aiInstructions, authorsNote, history.
- * - Builds a strict system prompt requiring at least 5 descriptive sentences per response.
- * - Calls OpenRouter streaming completions and forwards provider stream to client.
- *
- * IMPORTANT:
- * - Set process.env.OPENROUTER_API_KEY in your environment.
- * - The frontend expects SSE-style data chunks; this function forwards the provider stream directly.
+ * Note: Ensure OPENROUTER_API_KEY is set in environment.
  */
+
+async function streamProviderToClient(providerRes: Response, res: ServerResponse) {
+  // providerRes.body is a ReadableStream (Web)
+  const reader = providerRes.body!.getReader();
+  const decoder = new TextDecoder();
+
+  // set SSE headers on client response
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache, no-transform",
+    Connection: "keep-alive",
+  });
+
+  let done = false;
+  while (!done) {
+    const { value, done: d } = await reader.read();
+    done = d;
+    if (value) {
+      // forward chunk as data: <chunk>\n\n so client eventsource-parser receives event.data = chunk
+      const chunk = decoder.decode(value, { stream: true });
+      // sanitize: remove any lone "event:" that might confuse parser
+      // send chunk as-is but wrapped
+      res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+    }
+  }
+
+  // signal done
+  res.write("data: [DONE]\n\n");
+  res.end();
+}
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   if (req.method !== "POST") {
@@ -21,11 +46,11 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     return;
   }
 
-  let raw = "";
-  for await (const chunk of req) raw += chunk;
+  let bodyRaw = "";
+  for await (const chunk of req) bodyRaw += chunk;
   let body: any;
   try {
-    body = JSON.parse(raw);
+    body = JSON.parse(bodyRaw);
   } catch (err) {
     res.statusCode = 400;
     res.end("Invalid JSON");
@@ -39,32 +64,32 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     return;
   }
 
-  // Build system prompt enforcing minimum 5-sentence descriptive paragraphs
-  const lines: string[] = [];
-  lines.push("You are a cinematic Manhwa-style narrative engine. Always write in second-person ('You...').");
-  lines.push("Every response must be rich and descriptive, containing at least FIVE complete sentences.");
-  lines.push("Do NOT prefix replies with 'Assistant:' or repeat the user's prompt.");
-  lines.push(`Mode: ${body.mode || "story"}.`);
-  if (body.authorsNote) lines.push(`Author's Note: ${body.authorsNote}`);
-  if (body.aiInstructions) lines.push(`AI Instructions: ${body.aiInstructions}`);
-  if (body.title) lines.push(`World Title: ${body.title}`);
-  if (body.worldSummary) lines.push(`World Summary: ${body.worldSummary}`);
-  if (body.openingScene) lines.push(`Opening Scene: ${body.openingScene}`);
-  if (body.charName || body.charClass || body.charBackground) {
-    lines.push(
-      `Character: ${body.charName || "Unknown"} (${body.charClass || "Unknown"}). Background: ${body.charBackground || "—"}`
-    );
-  }
-  if (body.history && Array.isArray(body.history)) {
-    lines.push(`Recent History: ${body.history.slice(-6).join(" | ")}`);
-  }
+  // Build system prompt enforcing >=5 sentences and second-person narration
+  const pieces: string[] = [
+    "You are an immersive Manhwa-style narrative engine. Write in second-person ('You ...').",
+    "Every response MUST be a rich, descriptive paragraph containing at least FIVE complete sentences.",
+    "Do NOT prefix with 'Assistant:' or repeat or echo the user's exact prompt.",
+    `Mode: ${body.mode || "story"}.`,
+  ];
 
-  const systemPrompt = lines.join("\n");
+  if (body.rules?.aiInstructions) pieces.push(`AI Instructions: ${body.rules.aiInstructions}`);
+  if (body.rules?.authorsNote) pieces.push(`Author's Note: ${body.rules.authorsNote}`);
+  if (body.plot?.title) pieces.push(`World Title: ${body.plot.title}`);
+  if (body.plot?.summary) pieces.push(`World Summary: ${body.plot.summary}`);
+  if (body.plot?.opening) pieces.push(`Opening Scene: ${body.plot.opening}`);
+  if (body.message) pieces.push(`User Input: ${body.message}`);
 
-  // Build the model input
-  const userInput = `${systemPrompt}\n\nUser: ${body.message ?? ""}\n\nRespond with a minimum of 5 descriptive sentences.`;
+  const systemPrompt = pieces.join("\n");
 
-  // Call OpenRouter streaming completions endpoint
+  // Build model prompt input
+  const requestBody = {
+    model: "meta-llama/llama-3-8b-instruct:free",
+    input: systemPrompt,
+    stream: true,
+    max_tokens: 2048,
+    temperature: 0.8,
+  };
+
   try {
     const providerRes = await fetch("https://openrouter.ai/api/v1/completions", {
       method: "POST",
@@ -72,13 +97,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         "Content-Type": "application/json",
         Authorization: `Bearer ${OPENROUTER_API_KEY}`,
       },
-      body: JSON.stringify({
-        model: "meta-llama/llama-3-8b-instruct:free", // fallback stable model
-        input: userInput,
-        stream: true,
-        max_tokens: 2048,
-        temperature: 0.8,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!providerRes.ok || !providerRes.body) {
@@ -88,32 +107,12 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       return;
     }
 
-    // Forward SSE-compatible stream directly to client
-    res.writeHead(200, {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache, no-transform",
-      Connection: "keep-alive",
-    });
-
-    const reader = providerRes.body.getReader();
-    const decoder = new TextDecoder();
-    let done = false;
-
-    while (!done) {
-      const { value, done: d } = await reader.read();
-      done = d;
-      if (value) {
-        const chunk = decoder.decode(value, { stream: true });
-        // Forward provider chunk straight to client; frontend parses with eventsource-parser.
-        res.write(chunk);
-      }
-    }
-
-    // End stream
-    res.write("\n");
-    res.end();
+    // Stream provider response to client wrapped as SSE-friendly chunks
+    await streamProviderToClient(providerRes, res);
+    return;
   } catch (err: any) {
     res.statusCode = 500;
     res.end(`Server error: ${err?.message ?? String(err)}`);
+    return;
   }
 }

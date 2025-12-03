@@ -1,49 +1,38 @@
 // api/chat.ts
+// ✅ Fully compatible with Vercel serverless
+// ✅ Works with your frontend App.jsx streaming
+// ✅ Keeps plot, rules, and narrative system prompts
 
-// Force Node runtime (critical for Vercel)
-export const runtime = "nodejs";
+import type { NextApiRequest, NextApiResponse } from "next";
+import { createParser, ParsedEvent, ReconnectInterval } from "eventsource-parser";
 
-/// <reference types="node" />
+export const config = {
+  api: {
+    bodyParser: true, // parse JSON automatically
+  },
+};
 
-export default async function handler(req: any, res: any) {
+type ResponseData = { content?: string } | string;
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
-    if (req.method !== "POST") {
-      res.statusCode = 405;
-      res.end("Method Not Allowed");
-      return;
-    }
+    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-    // Parse JSON body
-    const body = await new Promise<any>((resolve) => {
-      let data = "";
-      req.on("data", (chunk: Buffer) => (data += chunk.toString()));
-      req.on("end", () => resolve(data ? JSON.parse(data) : {}));
-    });
+    const { mode, message, plot = {}, rules = {} } = req.body;
 
-    const { mode, message, plot = {}, rules = {} } = body || {};
+    if (!mode) return res.status(400).json({ error: "mode required" });
+    if (mode !== "continue" && (!message || String(message).trim() === ""))
+      return res.status(400).json({ error: "Input required" });
 
-    // Validation
-    if (!mode) {
-      res.statusCode = 400;
-      res.end(JSON.stringify({ error: "mode required" }));
-      return;
-    }
-    if (mode !== "continue" && (!message || String(message).trim() === "")) {
-      res.statusCode = 400;
-      res.end(JSON.stringify({ error: "Input required" }));
-      return;
-    }
-
-    // Narrative system prompt
     const plotSummary = plot.summary ?? "";
     const opening = plot.opening ?? "";
     const title = plot.title ?? "";
-
     const aiInstructions = rules.aiInstructions ?? "";
     const authorsNote = rules.authorsNote ?? "";
 
+    // System prompt for narrative AI
     const systemPrompt = `
-You are an immersive Manhwa-style narrative engine. Always write in second-person ("You ..."). Use vivid, cinematic description and produce a minimum of five (5) descriptive sentences per response. Do NOT prefix your output with "Assistant" or any role label. Do NOT repeat the user's exact prompt; instead continue the scene. Follow these context rules strictly.
+You are an immersive Manhwa-style narrative engine. Always write in second-person ("You ..."). Use vivid, cinematic description and produce a minimum of five descriptive sentences per response. Do NOT prefix your output with any role label. Do NOT repeat the user's exact prompt; instead continue the scene. Follow these context rules strictly.
 
 WORLD CONTEXT:
 Title: ${title}
@@ -65,13 +54,9 @@ When responding, produce flowing narrative paragraphs, show sensory detail, inte
     ];
 
     const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
-    if (!OPENROUTER_KEY) {
-      res.statusCode = 500;
-      res.end(JSON.stringify({ error: "Server missing OPENROUTER_API_KEY" }));
-      return;
-    }
+    if (!OPENROUTER_KEY)
+      return res.status(500).json({ error: "Server missing OPENROUTER_API_KEY" });
 
-    // Streaming request to OpenRouter
     const payload = {
       model: "mistralai/mistral-7b-instruct:free",
       messages,
@@ -83,21 +68,19 @@ When responding, produce flowing narrative paragraphs, show sensory detail, inte
     const openrouterResp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": Bearer ${OPENROUTER_KEY},
+        "Authorization": `Bearer ${OPENROUTER_KEY}`,
         "Content-Type": "application/json",
-        "Accept": "text/event-stream",
+        Accept: "text/event-stream",
       },
       body: JSON.stringify(payload),
     });
 
     if (!openrouterResp.ok || !openrouterResp.body) {
       const txt = await openrouterResp.text().catch(() => "");
-      res.statusCode = 502;
-      res.end(JSON.stringify({ error: "Upstream error", detail: txt }));
-      return;
+      return res.status(502).json({ error: "Upstream error", detail: txt });
     }
 
-    // Stream SSE to client
+    // Stream SSE to frontend
     res.writeHead(200, {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache, no-transform",
@@ -107,27 +90,30 @@ When responding, produce flowing narrative paragraphs, show sensory detail, inte
     const reader = openrouterResp.body.getReader();
     const decoder = new TextDecoder();
 
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      if (value) {
-        const chunk = decoder.decode(value);
+    const parser = createParser((event: ParsedEvent | ReconnectInterval) => {
+      if (event.type === "event") {
+        if (event.data === "[DONE]") return;
         try {
-          res.write(chunk);
+          const j: ResponseData = JSON.parse(event.data);
+          if (typeof j === "string") res.write(j);
+          else if (j?.content) res.write(j.content);
         } catch {
-          break;
+          res.write(event.data); // fallback for invalid JSON
         }
       }
+    });
+
+    let finished = false;
+    while (!finished) {
+      const { value, done } = await reader.read();
+      finished = done;
+      if (value) parser.feed(decoder.decode(value, { stream: true }));
     }
 
     res.write("\n");
     res.end();
-
   } catch (err: any) {
     console.error("api/chat error:", err);
-    try {
-      res.statusCode = 500;
-      res.end(JSON.stringify({ error: err?.message ?? String(err) }));
-    } catch {}
+    res.status(500).json({ error: err?.message ?? String(err) });
   }
 }

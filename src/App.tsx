@@ -1,6 +1,3 @@
-// Updated App.tsx with loading skeleton and smooth transitions
-// (Your original code + additions only — nothing removed)
-
 import React, { useEffect, useRef, useState } from "react";
 import { createParser, ParsedEvent, ReconnectInterval } from "eventsource-parser";
 import "./index.css";
@@ -231,7 +228,11 @@ export default function App(): JSX.Element {
         {/* ⭐ NEW — LOADING SCREEN */}
         {view === "LOADING" && (
           <div className="loading-page">
-            <div className="dots-loader"></div>
+            <div className="dots-loader">
+              <div></div>
+              <div></div>
+              <div></div>
+            </div>
             <p className="loading-text">Shaping your world…</p>
           </div>
         )}
@@ -319,7 +320,14 @@ export default function App(): JSX.Element {
               {lines.map((ln, i) => (
                 <p key={i} className={`story-line ${ln.who === "user" ? "user-line" : "ai-line"}`}>{ln.text}</p>
               ))}
-              {streaming && <p className="muted">…streaming response…</p>}
+
+              {/* ⭐ NEW — streaming skeleton */}
+              {streaming && (
+                <div className="stream-skeleton">
+                  <div className="pulse-line"></div>
+                  <div className="pulse-line short"></div>
+                </div>
+              )}
             </div>
 
             <div className="toolbar">

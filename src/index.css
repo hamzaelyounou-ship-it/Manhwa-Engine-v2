@@ -107,3 +107,51 @@ body{
 
 /* footer */
 .footer{padding:16px;text-align:center;color:rgba(255,255,255,0.5);font-size:13px}
+/* --------------------------------------------------
+   SPACING / LAYOUT IMPROVEMENTS
+-------------------------------------------------- */
+.page-container {
+  padding: 2rem;
+}
+
+.card-grid {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.story-log {
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+/* --------------------------------------------------
+   TRANSITIONS
+-------------------------------------------------- */
+.view-transition {
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+.view-transition.active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* --------------------------------------------------
+   LOADING SCREEN
+-------------------------------------------------- */
+.loading-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  font-size: 1.8rem;
+  animation: fadePulse 1.5s infinite ease-in-out;
+}
+
+@keyframes fadePulse {
+  0% { opacity: 0.3; }
+  50% { opacity: 1; }
+  100% { opacity: 0.3; }
+}

@@ -1,8 +1,9 @@
 // api/chat.ts
 
-// ❗ Removed the invalid Node import:
-// import { IncomingMessage, ServerResponse } from "http";
-// (Vercel API routes already pass req and res objects—no need to import "http")
+// Force Node runtime (critical for Vercel)
+export const runtime = "nodejs";
+
+/// <reference types="node" />
 
 export default async function handler(req: any, res: any) {
   try {
@@ -12,7 +13,7 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    // Parse body safely
+    // Parse JSON body
     const body = await new Promise<any>((resolve) => {
       let data = "";
       req.on("data", (chunk: Buffer) => (data += chunk.toString()));
@@ -21,7 +22,7 @@ export default async function handler(req: any, res: any) {
 
     const { mode, message, plot = {}, rules = {} } = body || {};
 
-    // Validate input
+    // Validation
     if (!mode) {
       res.statusCode = 400;
       res.end(JSON.stringify({ error: "mode required" }));
@@ -33,7 +34,7 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    // Build narrative system prompt
+    // Narrative system prompt
     const plotSummary = plot.summary ?? "";
     const opening = plot.opening ?? "";
     const title = plot.title ?? "";
@@ -58,13 +59,11 @@ ${aiInstructions}
 When responding, produce flowing narrative paragraphs, show sensory detail, internal state when appropriate, and clear consequences for actions. Keep responses in plain text suitable for streaming.
 `.trim();
 
-    // Assemble messages
     const messages = [
       { role: "system", content: systemPrompt },
       { role: "user", content: String(message ?? "") },
     ];
 
-    // Validate API key
     const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
     if (!OPENROUTER_KEY) {
       res.statusCode = 500;
@@ -72,7 +71,7 @@ When responding, produce flowing narrative paragraphs, show sensory detail, inte
       return;
     }
 
-    // OpenRouter payload
+    // Streaming request to OpenRouter
     const payload = {
       model: "mistralai/mistral-7b-instruct:free",
       messages,
@@ -81,7 +80,6 @@ When responding, produce flowing narrative paragraphs, show sensory detail, inte
       stream: true,
     };
 
-    // Fetch from OpenRouter using streaming
     const openrouterResp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -99,7 +97,7 @@ When responding, produce flowing narrative paragraphs, show sensory detail, inte
       return;
     }
 
-    // Stream response to client
+    // Stream SSE to client
     res.writeHead(200, {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache, no-transform",
@@ -117,7 +115,7 @@ When responding, produce flowing narrative paragraphs, show sensory detail, inte
         try {
           res.write(chunk);
         } catch {
-          break; // client disconnected
+          break;
         }
       }
     }

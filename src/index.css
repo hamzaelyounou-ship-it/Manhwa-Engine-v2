@@ -1,33 +1,111 @@
-html, body, #__next {
+/* =========================================================
+   GLOBAL RESET + DARK THEME
+   ========================================================= */
+
+* {
   margin: 0;
   padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
   height: 100%;
-  font-family: 'Georgia', serif;
-  background: radial-gradient(circle at 10% 10%, #001220, #0d141f);
+  width: 100%;
+  font-family: "Inter", sans-serif;
   color: white;
-  transition: background 0.5s ease;
 }
 
-body {
-  overflow-x: hidden;
-}
+/* =========================================================
+   BREATHING GRADIENT BACKGROUND
+   ========================================================= */
 
-button {
-  cursor: pointer;
-}
-
-.modal-backdrop {
-  background: rgba(0,0,0,0.7);
-  backdrop-filter: blur(4px);
-}
-
-@keyframes breathing {
+@keyframes breathingGradient {
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
 }
 
+.breathing-bg,
 body {
-  background-size: 200% 200%;
-  animation: breathing 20s ease infinite;
+  background: linear-gradient(-45deg, #0d0d14, #11111a, #14141f, #0f0f19);
+  background-size: 300% 300%;
+  animation: breathingGradient 12s ease infinite;
+}
+
+/* =========================================================
+   INPUT GLASS STYLE
+   ========================================================= */
+
+.input-style,
+.bg-black\/40,
+.bg-black\/30 {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  backdrop-filter: blur(6px);
+  color: white !important;
+  border-radius: 10px !important;
+  transition: 0.2s ease;
+}
+
+.input-style:focus {
+  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+}
+
+/* =========================================================
+   PANELS
+   ========================================================= */
+
+.form-panel,
+.bg-white\/5 {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  backdrop-filter: blur(10px);
+  border-radius: 16px;
+}
+
+/* story box improvement */
+.min-h-\[48vh\] {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* =========================================================
+   BUTTONS
+   ========================================================= */
+
+button {
+  transition: 0.25s ease !important;
+}
+
+button:hover {
+  transform: translateY(-2px);
+  background-color: rgba(255,255,255,0.12) !important;
+}
+
+/* Cyan buttons */
+.bg-cyan-500 {
+  background-color: #00eaff !important;
+  color: black !important;
+}
+.bg-cyan-500:hover {
+  background-color: #67f5ff !important;
+}
+
+/* =========================================================
+   SCENARIO CARDS
+   ========================================================= */
+
+.grid > div.bg-white\/5 {
+  transition: 0.25s ease;
+  cursor: pointer;
+}
+
+.grid > div.bg-white\/5:hover {
+  transform: translateY(-4px);
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* text sharpening */
+p, label, input, textarea {
+  font-smoothing: antialiased;
 }

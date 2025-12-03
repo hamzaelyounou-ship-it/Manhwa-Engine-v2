@@ -1,3 +1,4 @@
+import GameToolbar from "./components/GameToolbar";
 import React, { useState } from "react";
 import GameInterface from "./components/GameInterface";
 

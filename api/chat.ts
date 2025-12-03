@@ -1,17 +1,17 @@
 import { IncomingMessage, ServerResponse } from "http";
 
 /**
- * Serverless API route (node http style) that proxies OpenRouter streaming completions.
- * - Expects POST JSON body with fields:
- *   - mode: "do" | "say" | "think" | "story" | "continue"
- *   - message: string (user message or empty for continue)
- *   - ... optional context (worldSummary, authorsNote, etc.)
+ * api/chat.ts
  *
- * - Uses process.env.OPENROUTER_API_KEY
- * - Forwards the streaming response to the client as SSE (data: JSON\n\n chunks).
+ * Node-style serverless function that proxies OpenRouter streaming completions.
+ * - Accepts POST JSON with keys: mode, message, worldSummary, openingScene, title,
+ *   charName, charClass, charBackground, aiInstructions, authorsNote, history.
+ * - Builds a strict system prompt requiring at least 5 descriptive sentences per response.
+ * - Calls OpenRouter streaming completions and forwards provider stream to client.
  *
- * Important: This is intentionally conservative and forwards the provider's stream as-is.
- * The frontend uses eventsource-parser to parse incoming SSE into usable text pieces.
+ * IMPORTANT:
+ * - Set process.env.OPENROUTER_API_KEY in your environment.
+ * - The frontend expects SSE-style data chunks; this function forwards the provider stream directly.
  */
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
@@ -39,27 +39,32 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     return;
   }
 
-  // Build system prompt enforcing 5+ sentence descriptive narration
-  const systemPromptParts = [
-    `You are an immersive Manhwa-style game narrator (second-person).`,
-    `Respond in rich, descriptive paragraphs of at least FIVE sentences per turn.`,
-    `Do NOT prefix replies with "Assistant:" or reproduce the user's prompt.`,
-    `Follow the user's chosen mode: ${body.mode || "story"}.`,
-  ];
-
-  if (body.authorsNote) {
-    systemPromptParts.push(`Author's Note: ${body.authorsNote}`);
+  // Build system prompt enforcing minimum 5-sentence descriptive paragraphs
+  const lines: string[] = [];
+  lines.push("You are a cinematic Manhwa-style narrative engine. Always write in second-person ('You...').");
+  lines.push("Every response must be rich and descriptive, containing at least FIVE complete sentences.");
+  lines.push("Do NOT prefix replies with 'Assistant:' or repeat the user's prompt.");
+  lines.push(`Mode: ${body.mode || "story"}.`);
+  if (body.authorsNote) lines.push(`Author's Note: ${body.authorsNote}`);
+  if (body.aiInstructions) lines.push(`AI Instructions: ${body.aiInstructions}`);
+  if (body.title) lines.push(`World Title: ${body.title}`);
+  if (body.worldSummary) lines.push(`World Summary: ${body.worldSummary}`);
+  if (body.openingScene) lines.push(`Opening Scene: ${body.openingScene}`);
+  if (body.charName || body.charClass || body.charBackground) {
+    lines.push(
+      `Character: ${body.charName || "Unknown"} (${body.charClass || "Unknown"}). Background: ${body.charBackground || "—"}`
+    );
   }
-  if (body.worldSummary) {
-    systemPromptParts.push(`World Summary: ${body.worldSummary}`);
+  if (body.history && Array.isArray(body.history)) {
+    lines.push(`Recent History: ${body.history.slice(-6).join(" | ")}`);
   }
 
-  const systemPrompt = systemPromptParts.join("\n");
+  const systemPrompt = lines.join("\n");
 
-  // Build the input to the model: combine system prompt + user message
-  const userInput = `${systemPrompt}\n\nUser: ${body.message ?? ""}`;
+  // Build the model input
+  const userInput = `${systemPrompt}\n\nUser: ${body.message ?? ""}\n\nRespond with a minimum of 5 descriptive sentences.`;
 
-  // Call OpenRouter completions endpoint with streaming
+  // Call OpenRouter streaming completions endpoint
   try {
     const providerRes = await fetch("https://openrouter.ai/api/v1/completions", {
       method: "POST",
@@ -68,29 +73,28 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         Authorization: `Bearer ${OPENROUTER_API_KEY}`,
       },
       body: JSON.stringify({
-        model: "meta-llama/llama-3-8b-instruct:free", // fallback model choice
+        model: "meta-llama/llama-3-8b-instruct:free", // fallback stable model
         input: userInput,
         stream: true,
         max_tokens: 2048,
-        // You can customize temperature, top_p, etc.
+        temperature: 0.8,
       }),
     });
 
     if (!providerRes.ok || !providerRes.body) {
-      const errTxt = await providerRes.text();
+      const txt = await providerRes.text();
       res.statusCode = providerRes.status || 500;
-      res.end(`Upstream error: ${errTxt}`);
+      res.end(`Upstream error: ${txt}`);
       return;
     }
 
-    // Set SSE headers for client
+    // Forward SSE-compatible stream directly to client
     res.writeHead(200, {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache, no-transform",
       Connection: "keep-alive",
     });
 
-    // Pipe provider stream through to the client. Provider should already be sending SSE-style chunks.
     const reader = providerRes.body.getReader();
     const decoder = new TextDecoder();
     let done = false;
@@ -100,7 +104,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       done = d;
       if (value) {
         const chunk = decoder.decode(value, { stream: true });
-        // Forward chunk directly. The frontend will parse events with eventsource-parser.
+        // Forward provider chunk straight to client; frontend parses with eventsource-parser.
         res.write(chunk);
       }
     }

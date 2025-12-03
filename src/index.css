@@ -1,111 +1,109 @@
 /* =========================================================
-   GLOBAL RESET + DARK THEME
+   Global + Breathing Background
    ========================================================= */
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+:root{
+  --bg-1: #071019;
+  --bg-2: #0b1220;
+  --bg-3: #0f1724;
+  --accent: #00eaff;
+  --muted: rgba(255,255,255,0.6);
 }
 
-html, body, #root {
-  height: 100%;
-  width: 100%;
-  font-family: "Inter", sans-serif;
-  color: white;
-}
-
-/* =========================================================
-   BREATHING GRADIENT BACKGROUND
-   ========================================================= */
-
-@keyframes breathingGradient {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-.breathing-bg,
-body {
-  background: linear-gradient(-45deg, #0d0d14, #11111a, #14141f, #0f0f19);
+*{box-sizing:border-box;margin:0;padding:0}
+html,body,#root{height:100%}
+body{
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  color:#e6eef6;
+  background: linear-gradient(120deg,var(--bg-1),var(--bg-2),var(--bg-3));
   background-size: 300% 300%;
-  animation: breathingGradient 12s ease infinite;
+  animation: breathe 12s ease-in-out infinite;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
 }
 
-/* =========================================================
-   INPUT GLASS STYLE
-   ========================================================= */
-
-.input-style,
-.bg-black\/40,
-.bg-black\/30 {
-  background: rgba(255, 255, 255, 0.05) !important;
-  border: 1px solid rgba(255, 255, 255, 0.15) !important;
-  backdrop-filter: blur(6px);
-  color: white !important;
-  border-radius: 10px !important;
-  transition: 0.2s ease;
+/* breathing gradient */
+@keyframes breathe {
+  0%{background-position:0% 50%}
+  50%{background-position:100% 50%}
+  100%{background-position:0% 50%}
 }
 
-.input-style:focus {
-  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+/* layout */
+.app-root{min-height:100vh;display:flex;flex-direction:column}
+.topbar{height:64px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;border-bottom:1px solid rgba(255,255,255,0.03);backdrop-filter:blur(6px);background:rgba(0,0,0,0.04)}
+.brand{font-weight:700;font-size:20px;cursor:pointer}
+.top-actions{display:flex;gap:8px;align-items:center}
+.icon-btn{background:transparent;border:0;color:var(--muted);padding:6px;border-radius:8px;cursor:pointer}
+.icon-btn:hover{background:rgba(255,255,255,0.03);color:white}
+
+/* main container */
+.main-container{flex:1;padding:28px;max-width:1200px;margin:0 auto;width:100%}
+
+/* section title */
+.section-title{font-size:22px;margin-bottom:14px}
+
+/* =========================
+   CARD GRID (HOME)
+   ========================= */
+
+.card-grid{display:grid;grid-template-columns:repeat(1,1fr);gap:18px}
+@media(min-width:640px){ .card-grid{grid-template-columns:repeat(2,1fr)}}
+@media(min-width:1024px){ .card-grid{grid-template-columns:repeat(3,1fr)}}
+
+.scenario-card{
+  background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border:1px solid rgba(255,255,255,0.06);
+  padding:18px;border-radius:12px;display:flex;flex-direction:column;justify-content:space-between;transition:transform .18s ease,box-shadow .18s ease;cursor:pointer;
 }
+.scenario-card:hover{transform:translateY(-6px);box-shadow:0 8px 30px rgba(2,6,23,0.6)}
+.card-title{font-weight:700;margin-bottom:8px}
+.card-desc{color:rgba(230,238,246,0.75);font-size:14px;margin-bottom:12px}
+.card-actions{display:flex;gap:8px}
 
-/* =========================================================
-   PANELS
-   ========================================================= */
+/* buttons */
+.btn{padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:var(--muted);cursor:pointer}
+.btn:hover{background:rgba(255,255,255,0.03);color:white}
+.btn-primary{background:var(--accent);color:black;border:none;padding:9px 14px;border-radius:10px}
 
-.form-panel,
-.bg-white\/5 {
-  background: rgba(255, 255, 255, 0.05) !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  backdrop-filter: blur(10px);
-  border-radius: 16px;
-}
+/* =========================
+   SETUP / TABS
+   ========================= */
 
-/* story box improvement */
-.min-h-\[48vh\] {
-  background: rgba(255, 255, 255, 0.04) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
+.setup-panel{background:linear-gradient(180deg, rgba(0,0,0,0.05), rgba(0,0,0,0.02));border:1px solid rgba(255,255,255,0.04);padding:18px;border-radius:12px}
+.tabs{display:flex;gap:8px;margin-bottom:12px}
+.tab{padding:8px 12px;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,0.03);cursor:pointer;color:var(--muted)}
+.tab.active{background:rgba(255,255,255,0.03);color:white;border-color:rgba(255,255,255,0.08)}
+.tab-panel{margin-top:12px}
+.panel-grid{display:flex;flex-direction:column;gap:10px}
+.input{padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);color:inherit;resize:vertical}
+.input-color{height:40px;width:56px;padding:4px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:white}
 
-/* =========================================================
-   BUTTONS
-   ========================================================= */
+/* muted text */
+.muted{color:rgba(255,255,255,0.6);font-size:13px}
 
-button {
-  transition: 0.25s ease !important;
-}
+/* setup actions */
+.setup-actions{display:flex;gap:10px;margin-top:14px}
 
-button:hover {
-  transform: translateY(-2px);
-  background-color: rgba(255,255,255,0.12) !important;
-}
+/* =========================
+   GAME AREA
+   ========================= */
 
-/* Cyan buttons */
-.bg-cyan-500 {
-  background-color: #00eaff !important;
-  color: black !important;
-}
-.bg-cyan-500:hover {
-  background-color: #67f5ff !important;
-}
+.game-area{display:flex;flex-direction:column;gap:18px}
+.story-window{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.04);padding:18px;border-radius:12px;min-height:380px;max-height:60vh;overflow:auto}
+.story-line{margin-bottom:12px;line-height:1.6}
+.user-line{color:#8ffcff}
+.ai-line{color:#e6eef6}
 
-/* =========================================================
-   SCENARIO CARDS
-   ========================================================= */
+/* toolbar */
+.toolbar{position:fixed;left:50%;transform:translateX(-50%);bottom:24px;background:rgba(0,0,0,0.5);backdrop-filter:blur(8px);padding:10px 14px;border-radius:14px;border:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;gap:12px;z-index:60;min-width:720px;max-width:90%}
+@media(max-width:800px){ .toolbar{min-width:320px;padding:8px;flex-direction:column;gap:8px} .toolbar-right{display:flex;width:100%;gap:8px} .toolbar-left{width:100%;display:flex;flex-wrap:wrap;gap:6px} .toolbar-input{flex:1} }
 
-.grid > div.bg-white\/5 {
-  transition: 0.25s ease;
-  cursor: pointer;
-}
+.mode-btn{background:transparent;border:1px solid rgba(255,255,255,0.04);padding:8px 10px;border-radius:10px;cursor:pointer;color:var(--muted)}
+.mode-btn.active{background:rgba(255,255,255,0.06);color:white;border-color:rgba(255,255,255,0.1)}
+.toolbar-left{display:flex;gap:8px;align-items:center}
+.toolbar-right{display:flex;align-items:center;gap:8px}
+.toolbar-input{padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);width:420px;color:inherit}
 
-.grid > div.bg-white\/5:hover {
-  transform: translateY(-4px);
-  background: rgba(255, 255, 255, 0.1) !important;
-}
-
-/* text sharpening */
-p, label, input, textarea {
-  font-smoothing: antialiased;
-}
+/* footer */
+.footer{padding:16px;text-align:center;color:rgba(255,255,255,0.5);font-size:13px}

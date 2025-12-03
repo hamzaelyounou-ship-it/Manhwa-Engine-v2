@@ -3,16 +3,26 @@ import { createParser, ParsedEvent, ReconnectInterval } from "eventsource-parser
 import "./index.css";
 
 /**
- * Clean SPA with three views: HOME, SETUP (tabs), GAME.
- * Uses SSE parsing via eventsource-parser to avoid raw JSON prints.
+ * Clean SPA with four views now: HOME, SETUP (tabs), LOADING, GAME.
  */
 
-type View = "HOME" | "SETUP" | "GAME";
+type View = "HOME" | "SETUP" | "LOADING" | "GAME";
 type Mode = "do" | "say" | "think" | "story" | "continue" | "erase";
 type Line = { text: string; who: "user" | "ai" };
 
 export default function App(): JSX.Element {
   const [view, setView] = useState<View>("HOME");
+
+  // Smooth transitions
+  const [fade, setFade] = useState("fade-in");
+
+  const applyView = (v: View) => {
+    setFade("fade-out");
+    setTimeout(() => {
+      setView(v);
+      setFade("fade-in");
+    }, 180);
+  };
 
   // Setup state (tabs)
   const [activeSetupTab, setActiveSetupTab] = useState<"PLOT" | "RULES" | "APPEARANCE">("PLOT");
@@ -24,7 +34,9 @@ export default function App(): JSX.Element {
   const [bgAccent, setBgAccent] = useState("#0f1724");
 
   // Game state
-  const [lines, setLines] = useState<Line[]>([{ text: "Welcome — start a scenario or create a custom world.", who: "ai" }]);
+  const [lines, setLines] = useState<Line[]>([
+    { text: "Welcome — start a scenario or create a custom world.", who: "ai" },
+  ]);
   const [mode, setMode] = useState<Mode>("story");
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -70,7 +82,16 @@ export default function App(): JSX.Element {
       setOpeningScene(s.desc || "");
     }
     setActiveSetupTab("PLOT");
-    setView("SETUP");
+    applyView("SETUP");
+  }
+
+  /** ⭐ NEW — START GAME WITH LOADING SCREEN */
+  function startGameWithLoading() {
+    applyView("LOADING");
+
+    setTimeout(() => {
+      startGameFromSetup(); // existing
+    }, 1800);
   }
 
   function startGameFromSetup() {
@@ -80,7 +101,7 @@ export default function App(): JSX.Element {
     if (openingScene) initial.push({ text: openingScene, who: "ai" });
     if (initial.length === 0) initial.push({ text: "A new tale begins.", who: "ai" });
     setLines(initial);
-    setView("GAME");
+    applyView("GAME");
   }
 
   function appendLine(text: string, who: Line["who"] = "ai") {
@@ -91,24 +112,21 @@ export default function App(): JSX.Element {
     const m = modeOverride ?? mode;
 
     if (m === "erase") {
-      // remove last ai + user pair if present
       setLines((prev) => {
-        const copy = [...prev];
-        // remove last ai
-        for (let i = copy.length - 1; i >= 0; i--) {
-          if (copy[i].who === "ai") {
-            copy.splice(i, 1);
+        const c = [...prev];
+        for (let i = c.length - 1; i >= 0; i--) {
+          if (c[i].who === "ai") {
+            c.splice(i, 1);
             break;
           }
         }
-        // remove last user
-        for (let i = copy.length - 1; i >= 0; i--) {
-          if (copy[i].who === "user") {
-            copy.splice(i, 1);
+        for (let i = c.length - 1; i >= 0; i--) {
+          if (c[i].who === "user") {
+            c.splice(i, 1);
             break;
           }
         }
-        return copy;
+        return c;
       });
       return;
     }
@@ -145,35 +163,34 @@ export default function App(): JSX.Element {
       });
 
       if (!res.ok || !res.body) {
-        const txt = await res.text();
-        appendLine(`(error) ${txt}`, "ai");
+        const t = await res.text();
+        appendLine(`(error) ${t}`, "ai");
         setStreaming(false);
         return;
       }
 
-      // parse SSE-like forwarded chunks using eventsource-parser
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
+
       const parser = createParser((event: ParsedEvent | ReconnectInterval) => {
         if (event.type === "event") {
           if (event.data === "[DONE]") return;
           try {
-            const parsed = JSON.parse(event.data);
-            if (parsed?.content) appendLine(String(parsed.content), "ai");
-            else if (typeof parsed === "string") appendLine(parsed, "ai");
+            const j = JSON.parse(event.data);
+            if (j?.content) appendLine(String(j.content), "ai");
+            else if (typeof j === "string") appendLine(j, "ai");
           } catch {
             appendLine(String(event.data), "ai");
           }
         }
       });
 
-      let done = false;
-      while (!done) {
-        const { value, done: d } = await reader.read();
-        done = d;
+      let finished = false;
+      while (!finished) {
+        const { value, done } = await reader.read();
+        finished = done;
         if (value) {
-          const chunk = decoder.decode(value, { stream: true });
-          parser.feed(chunk);
+          parser.feed(decoder.decode(value, { stream: true }));
         }
       }
     } catch (err: any) {
@@ -185,19 +202,16 @@ export default function App(): JSX.Element {
     }
   }
 
-  // Undo / Redo simple: not persisted here (left as small helpers)
   function undo() {
     setLines((prev) => prev.slice(0, Math.max(0, prev.length - 2)));
   }
-  function redo() {
-    // placeholder: redo stack not implemented in this minimal structure
-  }
+  function redo() {}
 
   return (
-    <div className="app-root">
+    <div className={`app-root ${fade}`}>
       {/* Top Nav */}
       <header className="topbar">
-        <div className="brand" onClick={() => setView("HOME")}>Manhwa Engine</div>
+        <div className="brand" onClick={() => applyView("HOME")}>Manhwa Engine</div>
         <div className="top-actions">
           {view === "GAME" && (
             <>
@@ -205,13 +219,22 @@ export default function App(): JSX.Element {
               <button className="icon-btn" onClick={redo} title="Redo">↪️</button>
             </>
           )}
-          <button className="icon-btn" onClick={() => setView("SETUP")} title="Create">⚙️</button>
+          <button className="icon-btn" onClick={() => applyView("SETUP")} title="Create">⚙️</button>
         </div>
       </header>
 
       <main className="main-container">
+
+        {/* ⭐ NEW — LOADING SCREEN */}
+        {view === "LOADING" && (
+          <div className="loading-page">
+            <div className="dots-loader"></div>
+            <p className="loading-text">Shaping your world…</p>
+          </div>
+        )}
+
         {view === "HOME" && (
-          <section className="library">
+          <section className="library section-padding">
             <h2 className="section-title">Scenario Library</h2>
             <div className="card-grid">
               {SCENARIOS.map((s) => (
@@ -227,7 +250,7 @@ export default function App(): JSX.Element {
                         setPlotTitle(s.title);
                         setPlotSummary(s.worldSummary || "");
                         setOpeningScene(s.desc || "");
-                        startGameFromSetup();
+                        startGameWithLoading();
                       }}
                     >
                       Quick Start
@@ -241,7 +264,7 @@ export default function App(): JSX.Element {
         )}
 
         {view === "SETUP" && (
-          <section className="setup-panel">
+          <section className="setup-panel section-padding">
             <h2 className="section-title">Operations Room — Create Scenario</h2>
 
             <div className="tabs">
@@ -281,14 +304,14 @@ export default function App(): JSX.Element {
             </div>
 
             <div className="setup-actions">
-              <button className="btn btn-primary" onClick={() => startGameFromSetup()}>Start Game</button>
-              <button className="btn" onClick={() => setView("HOME")}>Cancel</button>
+              <button className="btn btn-primary" onClick={startGameWithLoading}>Start Game</button>
+              <button className="btn" onClick={() => applyView("HOME")}>Cancel</button>
             </div>
           </section>
         )}
 
         {view === "GAME" && (
-          <section className="game-area">
+          <section className="game-area section-padding">
             <div ref={storyRef} className="story-window">
               {lines.map((ln, i) => (
                 <p key={i} className={`story-line ${ln.who === "user" ? "user-line" : "ai-line"}`}>{ln.text}</p>
@@ -296,7 +319,6 @@ export default function App(): JSX.Element {
               {streaming && <p className="muted">…streaming response…</p>}
             </div>
 
-            {/* Toolbar — hidden on HOME; visible here */}
             <div className="toolbar">
               <div className="toolbar-left">
                 <button className={`mode-btn ${mode === "do" ? "active" : ""}`} onClick={() => setMode("do")}>🗡️ Do</button>
@@ -308,12 +330,19 @@ export default function App(): JSX.Element {
               </div>
 
               <div className="toolbar-right">
-                <input className="input toolbar-input" placeholder="Type action/dialogue..." value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") sendMessage(); }} />
+                <input
+                  className="input toolbar-input"
+                  placeholder="Type action/dialogue..."
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") sendMessage(); }}
+                />
                 <button className="btn btn-primary" onClick={() => sendMessage()}>Send</button>
               </div>
             </div>
           </section>
         )}
+
       </main>
 
       <footer className="footer muted">Manhwa Engine — cinematic story dashboard</footer>

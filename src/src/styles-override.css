@@ -1,0 +1,45 @@
+/* HOME — Scenario Library */
+
+main h2 {
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.grid > div {
+  padding: 18px !important;
+  border-radius: 16px !important;
+}
+
+/* SETUP FORM */
+main label {
+  font-size: 14px;
+  opacity: 0.85;
+  margin-bottom: 4px;
+}
+
+main input,
+main textarea {
+  margin-top: 4px;
+  padding: 12px 14px !important;
+  border-radius: 10px !important;
+}
+
+/* GAME VIEW */
+.font-serif {
+  font-family: "Georgia", serif !important;
+}
+
+.text-cyan-200 {
+  color: #8ffcff !important;
+}
+
+.text-gray-200 {
+  color: #d1d1d1 !important;
+}
+
+/* Bottom toolbar improvements */
+.fixed.bottom-6 {
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(0,0,0,0.4) !important;
+  backdrop-filter: blur(12px);
+}

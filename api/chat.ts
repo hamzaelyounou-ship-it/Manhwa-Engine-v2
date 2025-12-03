@@ -1,63 +1,115 @@
-import React, { useState } from "react";
-import GameInterface from "./components/GameInterface";
-import CreationModal from "./components/CreationModal";
-import GameToolbar from "./components/GameToolbar";
+import { IncomingMessage, ServerResponse } from "http";
 
-export default function App() {
-  const [view, setView] = useState<"HOME" | "GAME">("HOME");
-  const [modalOpen, setModalOpen] = useState(false);
-  const [worldData, setWorldData] = useState<any>({});
+/**
+ * Serverless API route (node http style) that proxies OpenRouter streaming completions.
+ * - Expects POST JSON body with fields:
+ *   - mode: "do" | "say" | "think" | "story" | "continue"
+ *   - message: string (user message or empty for continue)
+ *   - ... optional context (worldSummary, authorsNote, etc.)
+ *
+ * - Uses process.env.OPENROUTER_API_KEY
+ * - Forwards the streaming response to the client as SSE (data: JSON\n\n chunks).
+ *
+ * Important: This is intentionally conservative and forwards the provider's stream as-is.
+ * The frontend uses eventsource-parser to parse incoming SSE into usable text pieces.
+ */
 
-  const handleStartGame = (data: any) => {
-    setWorldData(data);
-    setView("GAME");
-  };
+export default async function handler(req: IncomingMessage, res: ServerResponse) {
+  if (req.method !== "POST") {
+    res.statusCode = 405;
+    res.end("Method Not Allowed");
+    return;
+  }
 
-  return (
-    <div className="min-h-screen bg-background text-white">
-      {/* Top Navbar */}
-      <header className="flex justify-between items-center p-4 bg-gray-900">
-        <div className="text-2xl font-bold">Manhwa Engine</div>
-        <div className="flex gap-4">
-          {/* Undo/Redo placeholders */}
-          <button className="hover:text-cyan-400">↩️ Undo</button>
-          <button className="hover:text-cyan-400">↪️ Redo</button>
-          <button onClick={() => setModalOpen(true)} className="hover:text-cyan-400">⚙️ Customize</button>
-        </div>
-      </header>
+  let raw = "";
+  for await (const chunk of req) raw += chunk;
+  let body: any;
+  try {
+    body = JSON.parse(raw);
+  } catch (err) {
+    res.statusCode = 400;
+    res.end("Invalid JSON");
+    return;
+  }
 
-      {/* Home Screen */}
-      {view === "HOME" && (
-        <main className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-gray-800 p-4 rounded hover:bg-gray-700 cursor-pointer"
-            onClick={() => handleStartGame({ default: true })}>
-            <h2 className="text-xl font-bold mb-2">Quick Start</h2>
-            <p>Start immediately with default scenario.</p>
-          </div>
-          <div className="bg-gray-800 p-4 rounded hover:bg-gray-700 cursor-pointer"
-            onClick={() => setModalOpen(true)}>
-            <h2 className="text-xl font-bold mb-2">Create Custom</h2>
-            <p>Define a new scenario using tabs.</p>
-          </div>
-        </main>
-      )}
+  const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+  if (!OPENROUTER_API_KEY) {
+    res.statusCode = 500;
+    res.end("Missing OPENROUTER_API_KEY");
+    return;
+  }
 
-      {/* Game Screen */}
-      {view === "GAME" && (
-        <>
-          <GameInterface
-            worldSummary={worldData}
-          />
-          <GameToolbar onSelectMode={(mode) => console.log("Selected mode:", mode)} />
-        </>
-      )}
+  // Build system prompt enforcing 5+ sentence descriptive narration
+  const systemPromptParts = [
+    `You are an immersive Manhwa-style game narrator (second-person).`,
+    `Respond in rich, descriptive paragraphs of at least FIVE sentences per turn.`,
+    `Do NOT prefix replies with "Assistant:" or reproduce the user's prompt.`,
+    `Follow the user's chosen mode: ${body.mode || "story"}.`,
+  ];
 
-      {/* Creation Modal */}
-      <CreationModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        onSave={handleStartGame}
-      />
-    </div>
-  );
+  if (body.authorsNote) {
+    systemPromptParts.push(`Author's Note: ${body.authorsNote}`);
+  }
+  if (body.worldSummary) {
+    systemPromptParts.push(`World Summary: ${body.worldSummary}`);
+  }
+
+  const systemPrompt = systemPromptParts.join("\n");
+
+  // Build the input to the model: combine system prompt + user message
+  const userInput = `${systemPrompt}\n\nUser: ${body.message ?? ""}`;
+
+  // Call OpenRouter completions endpoint with streaming
+  try {
+    const providerRes = await fetch("https://openrouter.ai/api/v1/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "meta-llama/llama-3-8b-instruct:free", // fallback model choice
+        input: userInput,
+        stream: true,
+        max_tokens: 2048,
+        // You can customize temperature, top_p, etc.
+      }),
+    });
+
+    if (!providerRes.ok || !providerRes.body) {
+      const errTxt = await providerRes.text();
+      res.statusCode = providerRes.status || 500;
+      res.end(`Upstream error: ${errTxt}`);
+      return;
+    }
+
+    // Set SSE headers for client
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+    });
+
+    // Pipe provider stream through to the client. Provider should already be sending SSE-style chunks.
+    const reader = providerRes.body.getReader();
+    const decoder = new TextDecoder();
+    let done = false;
+
+    while (!done) {
+      const { value, done: d } = await reader.read();
+      done = d;
+      if (value) {
+        const chunk = decoder.decode(value, { stream: true });
+        // Forward chunk directly. The frontend will parse events with eventsource-parser.
+        res.write(chunk);
+      }
+    }
+
+    // End stream
+    res.write("\n");
+    res.end();
+  } catch (err: any) {
+    res.statusCode = 500;
+    res.end(`Server error: ${err?.message ?? String(err)}`);
+  }
 }

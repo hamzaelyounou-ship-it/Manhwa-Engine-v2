@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createParser, ParsedEvent, ReconnectInterval } from "eventsource-parser";
+import "./styles-override.css";
 
 /**
  * App.tsx - Full app with three states: HOME, SETUP, GAME

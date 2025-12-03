@@ -1,126 +1,109 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createParser, ParsedEvent, ReconnectInterval } from "eventsource-parser";
-import "./styles-override.css";
+import "./index.css";
 
 /**
- * App.tsx - Full app with three states: HOME, SETUP, GAME
- *
- * - HOME: scenario library (cards)
- * - SETUP: scenario / world / author inputs (simple form)
- * - GAME: story log, top nav (home/shield/gear), and bottom toolbar (DO, SAY, THINK, STORY, CONTINUE, ERASE)
- *
- * Critical: uses eventsource-parser on the client to parse SSE from the server and append only narrative text.
+ * Clean SPA with three views: HOME, SETUP (tabs), GAME.
+ * Uses SSE parsing via eventsource-parser to avoid raw JSON prints.
  */
 
-type AppView = "HOME" | "SETUP" | "GAME";
-type ModeKey = "do" | "say" | "think" | "story" | "continue" | "erase";
-type Line = { text: string; from: "user" | "ai" };
+type View = "HOME" | "SETUP" | "GAME";
+type Mode = "do" | "say" | "think" | "story" | "continue" | "erase";
+type Line = { text: string; who: "user" | "ai" };
 
-export default function App() {
-  const [view, setView] = useState<AppView>("HOME");
+export default function App(): JSX.Element {
+  const [view, setView] = useState<View>("HOME");
 
-  // Setup / world state (SETUP view)
-  const [title, setTitle] = useState("");
-  const [summary, setSummary] = useState("");
+  // Setup state (tabs)
+  const [activeSetupTab, setActiveSetupTab] = useState<"PLOT" | "RULES" | "APPEARANCE">("PLOT");
+  const [plotTitle, setPlotTitle] = useState("");
+  const [plotSummary, setPlotSummary] = useState("");
   const [openingScene, setOpeningScene] = useState("");
-  const [charName, setCharName] = useState("");
-  const [charClass, setCharClass] = useState("");
-  const [charBackground, setCharBackground] = useState("");
   const [aiInstructions, setAiInstructions] = useState("");
   const [authorsNote, setAuthorsNote] = useState("");
+  const [bgAccent, setBgAccent] = useState("#0f1724");
 
   // Game state
-  const [lines, setLines] = useState<Line[]>([
-    { text: "Welcome to Manhwa Engine. Choose a scenario to start.", from: "ai" },
-  ]);
-  const [mode, setMode] = useState<ModeKey>("story");
+  const [lines, setLines] = useState<Line[]>([{ text: "Welcome — start a scenario or create a custom world.", who: "ai" }]);
+  const [mode, setMode] = useState<Mode>("story");
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const storyRef = useRef<HTMLDivElement | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
 
-  // UI small states
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  useEffect(() => {
+    if (storyRef.current) storyRef.current.scrollTop = storyRef.current.scrollHeight;
+  }, [lines, streaming]);
 
   // Sample scenarios
   const SCENARIOS = [
     {
       id: "solo",
       title: "Solo Leveling — Inspired",
-      desc: "Dark growth tale: a low-rank hunter rises in a dangerous world.",
-      worldSummary:
-        "Gates spawn across the city with monsters; hunters rise in rank by clearing dungeons.",
+      desc: "A low-rank hunter rises in a dangerous world of gates and monsters.",
+      worldSummary: "Gates spawn across the city; hunters clear dungeons and gain rank.",
     },
     {
-      id: "pirate",
+      id: "sea",
       title: "Grand Sea Voyage",
-      desc: "High seas adventure, mutiny, and treasure.",
-      worldSummary:
-        "The seas are divided among maritime factions; ships, crew loyalty, and maps drive conflict.",
+      desc: "High-seas adventure: treasures, storms, and rivalry.",
+      worldSummary: "Factions and naval power shape the seas; crews search for glory.",
     },
     {
       id: "custom",
       title: "Custom Scenario",
-      desc: "Design your own world in the Setup screen.",
+      desc: "Create your own world — open the Setup.",
       worldSummary: "",
     },
   ];
 
-  useEffect(() => {
-    if (storyRef.current) storyRef.current.scrollTop = storyRef.current.scrollHeight;
-  }, [lines, streaming]);
-
-  const appendLine = (text: string, from: Line["from"] = "ai") =>
-    setLines((prev) => [...prev, { text, from }]);
-
-  // Navigation helpers
-  function startSetupForScenario(scenarioId: string) {
-    if (scenarioId === "custom") {
-      // empty or preserve
-      setTitle("");
-      setSummary("");
+  function startSetupFromScenario(id: string) {
+    const s = SCENARIOS.find((x) => x.id === id);
+    if (!s) return;
+    if (id === "custom") {
+      setPlotTitle("");
+      setPlotSummary("");
       setOpeningScene("");
     } else {
-      const s = SCENARIOS.find((x) => x.id === scenarioId);
-      if (s) {
-        setTitle(s.title);
-        setSummary(s.worldSummary || "");
-        setOpeningScene(s.desc || "");
-      }
+      setPlotTitle(s.title);
+      setPlotSummary(s.worldSummary || "");
+      setOpeningScene(s.desc || "");
     }
+    setActiveSetupTab("PLOT");
     setView("SETUP");
   }
 
   function startGameFromSetup() {
-    // initialize story with world title and summary and/or opening scene
-    const init: Line[] = [];
-    if (title) init.push({ text: `World — ${title}`, from: "ai" });
-    if (summary) init.push({ text: summary, from: "ai" });
-    if (openingScene) init.push({ text: openingScene, from: "ai" });
-    if (init.length === 0) init.push({ text: "A new world begins.", from: "ai" });
-    setLines(init);
+    const initial: Line[] = [];
+    if (plotTitle) initial.push({ text: `World — ${plotTitle}`, who: "ai" });
+    if (plotSummary) initial.push({ text: plotSummary, who: "ai" });
+    if (openingScene) initial.push({ text: openingScene, who: "ai" });
+    if (initial.length === 0) initial.push({ text: "A new tale begins.", who: "ai" });
+    setLines(initial);
     setView("GAME");
   }
 
-  // Main send logic: POST to /api/chat, stream parse via eventsource-parser
-  async function sendMessage(modeOverride?: ModeKey) {
+  function appendLine(text: string, who: Line["who"] = "ai") {
+    setLines((prev) => [...prev, { text, who }]);
+  }
+
+  async function sendMessage(modeOverride?: Mode) {
     const m = modeOverride ?? mode;
 
-    // ERASE: remove last user+ai pair
     if (m === "erase") {
+      // remove last ai + user pair if present
       setLines((prev) => {
         const copy = [...prev];
-        // remove last AI
+        // remove last ai
         for (let i = copy.length - 1; i >= 0; i--) {
-          if (copy[i].from === "ai") {
+          if (copy[i].who === "ai") {
             copy.splice(i, 1);
             break;
           }
         }
         // remove last user
         for (let i = copy.length - 1; i >= 0; i--) {
-          if (copy[i].from === "user") {
+          if (copy[i].who === "user") {
             copy.splice(i, 1);
             break;
           }
@@ -130,22 +113,20 @@ export default function App() {
       return;
     }
 
-    // require input if not continue
     if (m !== "continue" && input.trim().length === 0) return;
 
     const userText =
       m === "say"
-        ? `${charName || "You"} say: "${input.trim()}"`
+        ? `You say: "${input.trim()}"`
         : m === "do"
-        ? `${charName || "You"} attempt: ${input.trim()}`
+        ? `You attempt: ${input.trim()}`
         : m === "think"
-        ? `${charName || "You"} think: ${input.trim()}`
+        ? `You think: ${input.trim()}`
         : m === "story"
-        ? `${charName || "You"} narrate: ${input.trim()}`
+        ? `You narrate: ${input.trim()}`
         : "Continue";
 
-    if (m !== "continue") setLines((prev) => [...prev, { text: userText, from: "user" }]);
-
+    if (m !== "continue") appendLine(userText, "user");
     setInput("");
     setStreaming(true);
     controllerRef.current = new AbortController();
@@ -157,14 +138,8 @@ export default function App() {
         body: JSON.stringify({
           mode: m,
           message: m === "continue" ? "" : userText,
-          worldSummary: summary,
-          openingScene,
-          title,
-          charName,
-          charClass,
-          charBackground,
-          aiInstructions,
-          authorsNote,
+          plot: { title: plotTitle, summary: plotSummary, opening: openingScene },
+          rules: { aiInstructions, authorsNote },
         }),
         signal: controllerRef.current.signal,
       });
@@ -176,28 +151,18 @@ export default function App() {
         return;
       }
 
+      // parse SSE-like forwarded chunks using eventsource-parser
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
-
-      // Use eventsource-parser to parse SSE chunks safely
       const parser = createParser((event: ParsedEvent | ReconnectInterval) => {
         if (event.type === "event") {
-          if (event.data === "[DONE]") {
-            // stream finished signal
-            return;
-          }
-          const data = event.data;
+          if (event.data === "[DONE]") return;
           try {
-            // provider should send JSON objects per data: {...}
-            const parsed = JSON.parse(data);
-            if (parsed?.content) {
-              appendLine(String(parsed.content), "ai");
-            } else if (typeof parsed === "string") {
-              appendLine(parsed, "ai");
-            }
+            const parsed = JSON.parse(event.data);
+            if (parsed?.content) appendLine(String(parsed.content), "ai");
+            else if (typeof parsed === "string") appendLine(parsed, "ai");
           } catch {
-            // fallback: append raw text
-            appendLine(String(data), "ai");
+            appendLine(String(event.data), "ai");
           }
         }
       });
@@ -220,222 +185,138 @@ export default function App() {
     }
   }
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-slate-900 to-black text-white">
-      {/* Top nav */}
-      <header className="flex items-center justify-between px-6 py-4 border-b border-white/5">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => setView("HOME")}
-            className="text-white/80 hover:text-white px-2 py-1 rounded"
-            title="Home"
-          >
-            🏠
-          </button>
-          <div className="text-xl font-bold">Manhwa Engine</div>
-        </div>
+  // Undo / Redo simple: not persisted here (left as small helpers)
+  function undo() {
+    setLines((prev) => prev.slice(0, Math.max(0, prev.length - 2)));
+  }
+  function redo() {
+    // placeholder: redo stack not implemented in this minimal structure
+  }
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setDrawerOpen((s) => !s)}
-            className="p-2 hover:bg-white/5 rounded"
-            title="Status"
-          >
-            🛡️
-          </button>
-          <button
-            onClick={() => setSettingsOpen((s) => !s)}
-            className="p-2 hover:bg-white/5 rounded"
-            title="Settings"
-          >
-            ⚙️
-          </button>
+  return (
+    <div className="app-root">
+      {/* Top Nav */}
+      <header className="topbar">
+        <div className="brand" onClick={() => setView("HOME")}>Manhwa Engine</div>
+        <div className="top-actions">
+          {view === "GAME" && (
+            <>
+              <button className="icon-btn" onClick={undo} title="Undo">↩️</button>
+              <button className="icon-btn" onClick={redo} title="Redo">↪️</button>
+            </>
+          )}
+          <button className="icon-btn" onClick={() => setView("SETUP")} title="Create">⚙️</button>
         </div>
       </header>
 
-      {/* Views */}
-      <main className="p-6 max-w-6xl mx-auto">
+      <main className="main-container">
         {view === "HOME" && (
-          <>
-            <h2 className="text-2xl font-semibold mb-4">Scenario Library</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <section className="library">
+            <h2 className="section-title">Scenario Library</h2>
+            <div className="card-grid">
               {SCENARIOS.map((s) => (
-                <div
-                  key={s.id}
-                  className="bg-white/5 rounded-lg p-4 flex flex-col"
-                >
-                  <h3 className="text-lg font-semibold">{s.title}</h3>
-                  <p className="text-sm text-white/70 my-2">{s.desc}</p>
-                  <div className="mt-auto flex gap-2">
+                <article key={s.id} className="scenario-card">
+                  <div className="card-body">
+                    <h3 className="card-title">{s.title}</h3>
+                    <p className="card-desc">{s.desc}</p>
+                  </div>
+                  <div className="card-actions">
                     <button
+                      className="btn btn-primary"
                       onClick={() => {
-                        // quick start with scenario defaults
-                        setTitle(s.title);
-                        setSummary(s.worldSummary || "");
+                        setPlotTitle(s.title);
+                        setPlotSummary(s.worldSummary || "");
                         setOpeningScene(s.desc || "");
                         startGameFromSetup();
                       }}
-                      className="px-3 py-2 bg-cyan-500 text-black rounded"
                     >
                       Quick Start
                     </button>
-                    <button
-                      onClick={() => startSetupForScenario(s.id)}
-                      className="px-3 py-2 border border-white/10 rounded"
-                    >
-                      Customize
-                    </button>
+                    <button className="btn" onClick={() => startSetupFromScenario(s.id)}>Customize</button>
                   </div>
-                </div>
+                </article>
               ))}
             </div>
-          </>
+          </section>
         )}
 
         {view === "SETUP" && (
-          <>
-            <h2 className="text-2xl font-semibold mb-4">Setup — Create Scenario</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white/5 p-4 rounded">
-                <label className="block mb-1">Title</label>
-                <input
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="w-full p-2 rounded bg-black/40"
-                />
-                <label className="block mt-3 mb-1">Summary</label>
-                <textarea
-                  value={summary}
-                  onChange={(e) => setSummary(e.target.value)}
-                  rows={4}
-                  className="w-full p-2 rounded bg-black/40"
-                />
-                <label className="block mt-3 mb-1">Opening Scene</label>
-                <textarea
-                  value={openingScene}
-                  onChange={(e) => setOpeningScene(e.target.value)}
-                  rows={3}
-                  className="w-full p-2 rounded bg-black/40"
-                />
-              </div>
+          <section className="setup-panel">
+            <h2 className="section-title">Operations Room — Create Scenario</h2>
 
-              <div className="bg-white/5 p-4 rounded">
-                <label className="block mb-1">Character Name</label>
-                <input
-                  value={charName}
-                  onChange={(e) => setCharName(e.target.value)}
-                  className="w-full p-2 rounded bg-black/40"
-                />
-                <label className="block mt-3 mb-1">Class</label>
-                <input
-                  value={charClass}
-                  onChange={(e) => setCharClass(e.target.value)}
-                  className="w-full p-2 rounded bg-black/40"
-                />
-                <label className="block mt-3 mb-1">Background</label>
-                <textarea
-                  value={charBackground}
-                  onChange={(e) => setCharBackground(e.target.value)}
-                  rows={3}
-                  className="w-full p-2 rounded bg-black/40"
-                />
-                <label className="block mt-3 mb-1">AI Instructions</label>
-                <textarea
-                  value={aiInstructions}
-                  onChange={(e) => setAiInstructions(e.target.value)}
-                  rows={2}
-                  className="w-full p-2 rounded bg-black/40"
-                />
-                <label className="block mt-3 mb-1">Author's Note</label>
-                <textarea
-                  value={authorsNote}
-                  onChange={(e) => setAuthorsNote(e.target.value)}
-                  rows={2}
-                  className="w-full p-2 rounded bg-black/40"
-                />
-              </div>
+            <div className="tabs">
+              <button className={`tab ${activeSetupTab === "PLOT" ? "active" : ""}`} onClick={() => setActiveSetupTab("PLOT")}>PLOT</button>
+              <button className={`tab ${activeSetupTab === "RULES" ? "active" : ""}`} onClick={() => setActiveSetupTab("RULES")}>RULES</button>
+              <button className={`tab ${activeSetupTab === "APPEARANCE" ? "active" : ""}`} onClick={() => setActiveSetupTab("APPEARANCE")}>APPEARANCE</button>
             </div>
 
-            <div className="mt-6 flex gap-3">
-              <button
-                onClick={() => startGameFromSetup()}
-                className="px-4 py-2 bg-cyan-500 text-black rounded"
-              >
-                Start Game
-              </button>
-              <button
-                onClick={() => setView("HOME")}
-                className="px-4 py-2 border border-white/10 rounded"
-              >
-                Cancel
-              </button>
+            <div className="tab-panel">
+              {activeSetupTab === "PLOT" && (
+                <div className="panel-grid">
+                  <label>Title</label>
+                  <input className="input" value={plotTitle} onChange={(e) => setPlotTitle(e.target.value)} />
+                  <label>Summary</label>
+                  <textarea className="input" rows={4} value={plotSummary} onChange={(e) => setPlotSummary(e.target.value)} />
+                  <label>Opening Scene</label>
+                  <textarea className="input" rows={3} value={openingScene} onChange={(e) => setOpeningScene(e.target.value)} />
+                </div>
+              )}
+
+              {activeSetupTab === "RULES" && (
+                <div className="panel-grid">
+                  <label>AI Instructions</label>
+                  <textarea className="input" rows={3} value={aiInstructions} onChange={(e) => setAiInstructions(e.target.value)} />
+                  <label>Author's Note</label>
+                  <textarea className="input" rows={3} value={authorsNote} onChange={(e) => setAuthorsNote(e.target.value)} />
+                </div>
+              )}
+
+              {activeSetupTab === "APPEARANCE" && (
+                <div className="panel-grid">
+                  <label>Background Accent</label>
+                  <input type="color" className="input-color" value={bgAccent} onChange={(e) => setBgAccent(e.target.value)} />
+                  <p className="muted">Choose a subtle background accent color for your world.</p>
+                </div>
+              )}
             </div>
-          </>
+
+            <div className="setup-actions">
+              <button className="btn btn-primary" onClick={() => startGameFromSetup()}>Start Game</button>
+              <button className="btn" onClick={() => setView("HOME")}>Cancel</button>
+            </div>
+          </section>
         )}
 
         {view === "GAME" && (
-          <>
-            {/* The story log */}
-            <div className="mb-6">
-              <div
-                ref={storyRef}
-                className="bg-white/5 p-6 rounded-lg min-h-[48vh] max-h-[60vh] overflow-y-auto font-serif text-lg leading-relaxed"
-              >
-                {lines.map((ln, idx) => (
-                  <p key={idx} className={`${ln.from === "user" ? "text-cyan-200" : "text-gray-200"} mb-4`}>
-                    {ln.text}
-                  </p>
-                ))}
-
-                {streaming && <p className="text-gray-400 italic">…streaming response…</p>}
-              </div>
+          <section className="game-area">
+            <div ref={storyRef} className="story-window">
+              {lines.map((ln, i) => (
+                <p key={i} className={`story-line ${ln.who === "user" ? "user-line" : "ai-line"}`}>{ln.text}</p>
+              ))}
+              {streaming && <p className="muted">…streaming response…</p>}
             </div>
 
-            {/* Bottom toolbar & input */}
-            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-black/40 backdrop-blur-md rounded-full px-4 py-2 flex gap-2 items-center z-50">
-              <input
-                placeholder="Type action, dialogue, or leave blank for Continue"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
-                  }
-                }}
-                className="bg-transparent outline-none text-white placeholder-gray-400 w-[40rem]"
-              />
-              <div className="flex gap-2">
-                <button onClick={() => sendMessage("do")} title="Do (Action)" className="px-3 py-1 rounded hover:bg-white/10">🗡️</button>
-                <button onClick={() => sendMessage("say")} title="Say (Dialogue)" className="px-3 py-1 rounded hover:bg-white/10">💬</button>
-                <button onClick={() => sendMessage("think")} title="Think (Internal)" className="px-3 py-1 rounded hover:bg-white/10">💭</button>
-                <button onClick={() => sendMessage("story")} title="Story (Narration)" className="px-3 py-1 rounded hover:bg-white/10">📖</button>
-                <button onClick={() => sendMessage("continue")} title="Continue" className="px-3 py-1 rounded hover:bg-white/10">🔄</button>
-                <button onClick={() => sendMessage("erase")} title="Erase last" className="px-3 py-1 rounded hover:bg-white/10">🗑️</button>
+            {/* Toolbar — hidden on HOME; visible here */}
+            <div className="toolbar">
+              <div className="toolbar-left">
+                <button className={`mode-btn ${mode === "do" ? "active" : ""}`} onClick={() => setMode("do")}>🗡️ Do</button>
+                <button className={`mode-btn ${mode === "say" ? "active" : ""}`} onClick={() => setMode("say")}>💬 Say</button>
+                <button className={`mode-btn ${mode === "think" ? "active" : ""}`} onClick={() => setMode("think")}>💭 Think</button>
+                <button className={`mode-btn ${mode === "story" ? "active" : ""}`} onClick={() => setMode("story")}>📖 Story</button>
+                <button className="mode-btn" onClick={() => sendMessage("continue")}>🔄 Continue</button>
+                <button className="mode-btn" onClick={() => sendMessage("erase")}>🗑️ Erase</button>
+              </div>
+
+              <div className="toolbar-right">
+                <input className="input toolbar-input" placeholder="Type action/dialogue..." value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") sendMessage(); }} />
+                <button className="btn btn-primary" onClick={() => sendMessage()}>Send</button>
               </div>
             </div>
-          </>
+          </section>
         )}
       </main>
 
-      {/* Simple right drawer for status (if drawerOpen) */}
-      {drawerOpen && (
-        <aside className="fixed right-6 top-24 w-80 bg-white/5 p-4 rounded z-40">
-          <h4 className="font-semibold mb-2">Status</h4>
-          <div className="text-sm text-white/70">Health: —</div>
-          <div className="text-sm text-white/70">Energy: —</div>
-          <div className="mt-3 text-xs text-white/60">(Status drawer placeholder)</div>
-        </aside>
-      )}
-
-      {/* Simple settings drawer */}
-      {settingsOpen && (
-        <aside className="fixed left-6 top-24 w-96 bg-white/5 p-4 rounded z-40">
-          <h4 className="font-semibold mb-2">Settings</h4>
-          <div className="text-sm text-white/70">Author's Note (preview):</div>
-          <p className="text-sm text-white/60 mt-2">{authorsNote || "— none —"}</p>
-        </aside>
-      )}
+      <footer className="footer muted">Manhwa Engine — cinematic story dashboard</footer>
     </div>
   );
 }
